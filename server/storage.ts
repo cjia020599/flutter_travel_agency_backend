@@ -33,11 +33,13 @@ export interface IStorage {
   getAttributes(): Promise<Attribute[]>;
 
   // Auth / Users
+  getUsers(): Promise<AuthUser[]>;
   getUserById(id: number): Promise<AuthUser | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
   updateUser(id: number, updates: Partial<UpdateProfileInput>): Promise<AuthUser>;
+  deleteUser(id: number): Promise<void>;
   getRawUser(id: number): Promise<User | undefined>;
 
   // Vendor
@@ -154,6 +156,15 @@ export class DatabaseStorage implements IStorage {
   async updateUser(id: number, updates: Partial<UpdateProfileInput>): Promise<AuthUser> {
     await db.update(users).set(updates).where(eq(users.id, id));
     return this.getUserById(id) as Promise<AuthUser>;
+  }
+
+  async getUsers(): Promise<AuthUser[]> {
+    const all = await db.select().from(users);
+    return Promise.all(all.map((u) => this.buildAuthUser(u)));
+  }
+
+  async deleteUser(id: number): Promise<void> {
+    await db.delete(users).where(eq(users.id, id));
   }
 
   // ---- Vendor ----

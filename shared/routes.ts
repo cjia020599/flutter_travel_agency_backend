@@ -72,6 +72,36 @@ export const api = {
       path: "/api/admin/roles" as const,
       responses: { 200: z.array(z.any()) },
     },
+    users: {
+      list: {
+        method: "GET" as const,
+        path: "/api/admin/users" as const,
+        responses: { 200: z.array(z.any()) },
+      },
+      get: {
+        method: "GET" as const,
+        path: "/api/admin/users/:id" as const,
+        responses: {
+          200: z.any(),
+          404: errorSchemas.notFound,
+        },
+      },
+      update: {
+        method: "PUT" as const,
+        path: "/api/admin/users/:id" as const,
+        input: updateProfileSchema,
+        responses: {
+          200: z.any(),
+          400: errorSchemas.validation,
+          404: errorSchemas.notFound,
+        },
+      },
+      delete: {
+        method: "DELETE" as const,
+        path: "/api/admin/users/:id" as const,
+        responses: { 204: z.void(), 404: errorSchemas.notFound },
+      },
+    },
   },
   tours: {
     list: {

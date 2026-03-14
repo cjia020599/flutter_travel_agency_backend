@@ -108,6 +108,48 @@ export async function registerRoutes(
     return res.json(roles);
   });
 
+  app.get(api.admin.users.list.path, requireAuth, requireAdmin, async (req, res) => {
+    const currentUser = (req as any).user;
+    const users = await storage.getUsers();
+    return res.json(users.filter((u) => u.id !== currentUser.id));
+  });
+
+  app.get(api.admin.users.get.path, requireAuth, requireAdmin, async (req, res) => {
+    const id = Number(req.params.id);
+    const user = await storage.getUserById(id);
+    if (!user) return res.status(404).json({ message: "Not found" });
+    return res.json(user);
+  });
+
+  app.put(api.admin.users.update.path, requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const user = await storage.getUserById(id);
+      if (!user) return res.status(404).json({ message: "Not found" });
+
+      const input = updateProfileSchema.parse(req.body);
+      const updated = await storage.updateUser(id, input);
+      return res.json(updated);
+    } catch (e) {
+      if (e instanceof z.ZodError) {
+        return res.status(400).json({ message: e.errors[0].message, field: e.errors[0].path.join(".") });
+      }
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.delete(api.admin.users.delete.path, requireAuth, requireAdmin, async (req, res) => {
+    const currentUser = (req as any).user;
+    const id = Number(req.params.id);
+    if (id === currentUser.id) {
+      return res.status(400).json({ message: "Cannot delete yourself" });
+    }
+    const user = await storage.getUserById(id);
+    if (!user) return res.status(404).json({ message: "Not found" });
+    await storage.deleteUser(id);
+    return res.status(204).end();
+  });
+
   // ===================== TOURS =====================
 
   app.get(api.tours.list.path, async (req, res) => {
