@@ -6,8 +6,8 @@ import { storage } from "./storage";
 import { api } from "@shared/routes";
 import { registerSchema, loginSchema, updateProfileSchema } from "@shared/schema";
 import { signToken, requireAuth, requireAdmin } from "./auth";
-import { db } from "./db";
-import { locations, attributes, tours, cars, roles } from "@shared/schema";
+import { eq } from "drizzle-orm";
+import { locations, attributes, tours, cars, roles, tourAttributes, carAttributes } from "@shared/schema";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -124,7 +124,12 @@ export async function registerRoutes(
   app.post(api.tours.create.path, async (req, res) => {
     try {
       const input = api.tours.create.input.parse(req.body);
-      const tour = await storage.createTour(input);
+      const { attributeIds, ...tourData } = input;
+      const tour = await storage.createTour(tourData);
+      if (attributeIds && attributeIds.length > 0) {
+        const values = attributeIds.map(attrId => ({ tourId: tour.id, attributeId: attrId }));
+        await db.insert(tourAttributes).values(values);
+      }
       res.status(201).json(tour);
     } catch (e) {
       if (e instanceof z.ZodError) {
@@ -137,8 +142,18 @@ export async function registerRoutes(
   app.put(api.tours.update.path, async (req, res) => {
     try {
       const input = api.tours.update.input.parse(req.body);
-      const tour = await storage.updateTour(Number(req.params.id), input);
+      const { attributeIds, ...tourData } = input;
+      const tour = await storage.updateTour(Number(req.params.id), tourData);
       if (!tour) return res.status(404).json({ message: "Not found" });
+      if (attributeIds !== undefined) {
+        // Delete existing attributes
+        await db.delete(tourAttributes).where(eq(tourAttributes.tourId, tour.id));
+        // Insert new ones
+        if (attributeIds.length > 0) {
+          const values = attributeIds.map(attrId => ({ tourId: tour.id, attributeId: attrId }));
+          await db.insert(tourAttributes).values(values);
+        }
+      }
       res.json(tour);
     } catch (e) {
       if (e instanceof z.ZodError) {
@@ -169,7 +184,12 @@ export async function registerRoutes(
   app.post(api.cars.create.path, async (req, res) => {
     try {
       const input = api.cars.create.input.parse(req.body);
-      const car = await storage.createCar(input);
+      const { attributeIds, ...carData } = input;
+      const car = await storage.createCar(carData);
+      if (attributeIds && attributeIds.length > 0) {
+        const values = attributeIds.map(attrId => ({ carId: car.id, attributeId: attrId }));
+        await db.insert(carAttributes).values(values);
+      }
       res.status(201).json(car);
     } catch (e) {
       if (e instanceof z.ZodError) {
@@ -182,8 +202,18 @@ export async function registerRoutes(
   app.put(api.cars.update.path, async (req, res) => {
     try {
       const input = api.cars.update.input.parse(req.body);
-      const car = await storage.updateCar(Number(req.params.id), input);
+      const { attributeIds, ...carData } = input;
+      const car = await storage.updateCar(Number(req.params.id), carData);
       if (!car) return res.status(404).json({ message: "Not found" });
+      if (attributeIds !== undefined) {
+        // Delete existing attributes
+        await db.delete(carAttributes).where(eq(carAttributes.carId, car.id));
+        // Insert new ones
+        if (attributeIds.length > 0) {
+          const values = attributeIds.map(attrId => ({ carId: car.id, attributeId: attrId }));
+          await db.insert(carAttributes).values(values);
+        }
+      }
       res.json(car);
     } catch (e) {
       if (e instanceof z.ZodError) {
