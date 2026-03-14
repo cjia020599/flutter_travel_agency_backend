@@ -135,6 +135,7 @@ export async function registerRoutes(
       if (e instanceof z.ZodError) {
         return res.status(400).json({ message: e.errors[0].message, field: e.errors[0].path.join(".") });
       }
+      console.error("Error creating tour:", e);
       res.status(500).json({ message: "Internal Error" });
     }
   });
@@ -184,6 +185,7 @@ export async function registerRoutes(
   app.post(api.cars.create.path, async (req, res) => {
     try {
       const input = api.cars.create.input.parse(req.body);
+      console.log("Creating car with input:", input);
       const { attributeIds, ...carData } = input;
       const car = await storage.createCar(carData);
       if (attributeIds && attributeIds.length > 0) {
@@ -195,6 +197,7 @@ export async function registerRoutes(
       if (e instanceof z.ZodError) {
         return res.status(400).json({ message: e.errors[0].message, field: e.errors[0].path.join(".") });
       }
+      console.error("Error creating car:", e);
       res.status(500).json({ message: "Internal Error" });
     }
   });

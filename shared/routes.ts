@@ -16,19 +16,19 @@ export const errorSchemas = {
 
 export const createTourInput = insertTourSchema.extend({
   attributeIds: z.array(z.number()).optional(),
-  price: z.coerce.string().optional(),
-  salePrice: z.coerce.string().optional(),
-  mapLat: z.coerce.string().optional(),
-  mapLng: z.coerce.string().optional(),
+  price: z.union([z.coerce.string(), z.null()]).optional().transform(val => val === null ? undefined : val),
+  salePrice: z.union([z.coerce.string(), z.null()]).optional().transform(val => val === null ? undefined : val),
+  mapLat: z.union([z.coerce.string(), z.null()]).optional().transform(val => val === null ? undefined : val),
+  mapLng: z.union([z.coerce.string(), z.null()]).optional().transform(val => val === null ? undefined : val),
 });
 export const updateTourInput = createTourInput.partial();
 
 export const createCarInput = insertCarSchema.extend({
   attributeIds: z.array(z.number()).optional(),
-  price: z.coerce.string().optional(),
-  salePrice: z.coerce.string().optional(),
-  mapLat: z.coerce.string().optional(),
-  mapLng: z.coerce.string().optional(),
+  price: z.union([z.coerce.string(), z.null()]).optional().transform(val => val === null ? undefined : val),
+  salePrice: z.union([z.coerce.string(), z.null()]).optional().transform(val => val === null ? undefined : val),
+  mapLat: z.union([z.coerce.string(), z.null()]).optional().transform(val => val === null ? undefined : val),
+  mapLng: z.union([z.coerce.string(), z.null()]).optional().transform(val => val === null ? undefined : val),
 });
 export const updateCarInput = createCarInput.partial();
 
