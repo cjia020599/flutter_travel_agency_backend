@@ -1,0 +1,55 @@
+Role: Senior Full-Stack Architect
+
+Task: Generate a production-grade RESTful API backend for a Travel & Booking System (Tours and Car Rentals) based on the following precise data structures.
+
+1. Core Database Schema & Relationships:
+
+Shared Tables:
+
+Locations: id, name, parent_id (hierarchical), slug, status.
+
+Media: id, file_path, file_type, author_id.
+
+Attributes: id, name, type (e.g., 'Travel Style', 'Facility', 'Car Feature', 'Car Type').
+
+Tour Entity: id, title, slug, content (LongText), category_id, video_url, status (enum: publish/draft), is_featured (bool), author_id.
+
+Logistics: duration (hours), min_people, max_people, min_day_before_booking.
+
+JSON Objects: itinerary (image_id, title, desc, content), faqs (title, content), include (array), exclude (array), surroundings (education/health/transport: name, content, distance).
+
+Car Entity: id, title, slug, content, video_url, status, is_featured, author_id.
+
+Specs: passenger (int), gear_shift (string), baggage (int), door (int).
+
+Inventory: inventory_count (total cars), min_day_stay, min_day_before_booking.
+
+2. Shared Modules (Polymorphic/Linked):
+
+Geo-Location: Both entities link to map_lat, map_lng, map_zoom, and real_address.
+
+Pricing Engine: price (decimal), sale_price (decimal), extra_prices (JSON), service_fees (JSON).
+
+Tour specific: person_types (JSON: name, price), discount_by_people (JSON: count, amount, type).
+
+Availability: fixed_dates (toggle), open_hours (toggle/JSON).
+
+3. Required API Endpoints (CRUD + Search):
+
+POST /api/{module}/create: Must handle nested JSON for Itineraries/Surroundings and sync Many-to-Many attributes (Facilities/Features).
+
+PUT /api/{module}/{id}: Partial updates for status or featured toggles.
+
+GET /api/{module}: Advanced filtering by location_id, price_range, attribute_id, and is_featured.
+
+DELETE /api/{module}/{id}: Soft delete implementation.
+
+4. Business Logic Constraints:
+
+Pricing Logic: If sale_price > 0 and < price, the API must return sale_price as the active booking rate.
+
+Car Availability: Block bookings if active rentals for a date range exceed the inventory_count.
+
+Validation: Slugs must be auto-generated from titles and unique.
+
+Implementation Request: Provide the the best programming language migrations, models with defined relationships, and a robust Controller that handles the complex JSON storage for the 'Add Item' UI components.
