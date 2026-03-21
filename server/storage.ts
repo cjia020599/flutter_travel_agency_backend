@@ -244,7 +244,12 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createCarRental(rental: InsertCarRental): Promise<Booking> {
-    const [result] = await db.insert(bookings).values(rental).returning();
+    const parsedDates = {
+      ...rental,
+      startDate: new Date(rental.startDate as string),
+      endDate: new Date(rental.endDate as string),
+    };
+    const [result] = await db.insert(bookings).values(parsedDates as any).returning();
     return result;
   }
 

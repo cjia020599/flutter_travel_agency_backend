@@ -447,20 +447,23 @@ app.post('/api/upload/image', requireAuth, upload.fields([{ name: 'image', maxCo
 
   app.post(api.carRentals.create.path, requireAuth, async (req, res) => {
     try {
-      const input = api.carRentals.create.input.parse(req.body);
+      const input = api.carRentals.create.input.parse({
+        ...req.body,
+        carId: Number(req.body.carId)
+      });
       const rental = await storage.createCarRental({
         ...input,
         userId: (req as any).user.id,
-        moduleType: "car",
+        moduleId: input.carId,
         status: "confirmed",
       });
       res.status(201).json(rental);
     } catch (e) {
       if (e instanceof z.ZodError) {
-        return res.status(400).json({ message: e.errors[0].message });
+        return res.status(400).json({ message: e.errors[0].message, errors: e.errors });
       }
       console.error("Error creating rental:", e);
-      res.status(500).json({ message: "Internal Error" });
+      res.status(500).json({ message: "Internal Error", error: e.message });
     }
   });
 
