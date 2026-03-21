@@ -176,15 +176,18 @@ app.post('/api/upload/image', requireAuth, upload.fields([{ name: 'image', maxCo
     } catch (error) {
       console.error('Upload error:', error);
       // Clean up temp files if they exist
-      const files = (req.files as any[]) || [];
-      files.forEach(f => {
-        if (f.path && fs.existsSync(f.path)) {
-          fs.unlinkSync(f.path);
-        }
-      });
+      const files = req.files as any[];
+      if (Array.isArray(files)) {
+        files.forEach(f => {
+          if (f && f.path && fs.existsSync(f.path)) {
+            fs.unlinkSync(f.path);
+          }
+        });
+      }
       res.status(500).json({ message: 'Upload failed' });
     }
   });
+
 
 
   // Delete image from Cloudinary
