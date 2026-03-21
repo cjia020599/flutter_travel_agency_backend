@@ -137,12 +137,21 @@ app.post('/api/upload/image', requireAuth, upload.fields([{ name: 'image', maxCo
     try {
       console.log('req.files:', req.files);
       const filesArray = Array.isArray(req.files) ? req.files : [];
-      const file = filesArray.find((f: any) => f.fieldname === 'image' || f.fieldname === 'images');
+      console.log('filesArray:', filesArray.map((f: any) => ({fieldname: f.fieldname, mimetype: f.mimetype})));
+      
+      // Handle multer.fields structure: req.files[fieldname][]
+      let file = null;
+      if (req.files['image'] && Array.isArray(req.files['image'])) {
+        file = req.files['image'][0];
+      } else if (req.files['images'] && Array.isArray(req.files['images'])) {
+        file = req.files['images'][0];
+      }
       
       if (!file) {
-        console.log('No file found. Available fields:', filesArray.map((f: any) => f.fieldname));
-        return res.status(400).json({ message: 'No file uploaded' });
+        console.log('No matching file found. req.files structure:', Object.keys(req.files || {}));
+        return res.status(400).json({ message: 'No file uploaded - use field "image" or "images"' });
       }
+      console.log('Processing file:', file.fieldname, file.originalname, file.mimetype);
 
       // Validate file type
       const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
