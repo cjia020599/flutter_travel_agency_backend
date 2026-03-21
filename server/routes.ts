@@ -454,6 +454,7 @@ app.post('/api/upload/image', requireAuth, upload.fields([{ name: 'image', maxCo
       const rental = await storage.createCarRental({
         ...input,
         userId: (req as any).user.id,
+        moduleType: "car",
         moduleId: input.carId,
         status: "confirmed",
       });
