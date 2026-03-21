@@ -152,6 +152,9 @@ export const carAttributes = pgTable("car_attributes", {
 export const bookings = pgTable("bookings", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").references(() => users.id),
+  buyerName: text("buyer_name"),
+  buyerEmail: text("buyer_email"),
+  buyerPhone: text("buyer_phone"),
   moduleType: text("module_type").notNull(),
   moduleId: integer("module_id").notNull(),
   startDate: timestamp("start_date").notNull(),
@@ -168,10 +171,19 @@ export const insertMediaSchema = createInsertSchema(media).omit({ id: true });
 export const insertAttributeSchema = createInsertSchema(attributes).omit({ id: true });
 export const insertTourSchema = createInsertSchema(tours).omit({ id: true, deletedAt: true });
 export const insertCarSchema = createInsertSchema(cars).omit({ id: true, deletedAt: true });
-export const insertBookingSchema = createInsertSchema(bookings).omit({ id: true });
+export const insertBookingSchema = createInsertSchema(bookings).omit({ id: true }).extend({
+  buyerName: z.string().optional(),
+  buyerEmail: z.string().email().optional(),
+  buyerPhone: z.string().optional(),
+});
 
 export const insertCarRentalSchema = insertBookingSchema.extend({
   moduleType: z.literal("car"),
+  userId: z.coerce.number(),
+});
+
+export const insertTourBookingSchema = insertBookingSchema.extend({
+  moduleType: z.literal("tour"),
   userId: z.coerce.number(),
 });
 
@@ -191,7 +203,13 @@ export type CarRental = Booking & {
   user: Pick<User, "id" | "firstName" | "lastName" | "email">;
 };
 
+export type TourBooking = Booking & {
+  tour: Pick<Tour, "id" | "title" | "price" | "imageUrl" | "locationId">;
+  user: Pick<User, "id" | "firstName" | "lastName" | "email">;
+};
+
 export type InsertCarRental = z.infer<typeof insertCarRentalSchema>;
+export type InsertTourBooking = z.infer<typeof insertTourBookingSchema>;
 
 export type InsertRole = z.infer<typeof insertRoleSchema>;
 export type InsertUser = z.infer<typeof insertUserSchema>;

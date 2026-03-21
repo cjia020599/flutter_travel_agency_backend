@@ -4,7 +4,7 @@ import {
   users, roles, vendorProfiles,
   type Tour, type InsertTour,
   type Car, type InsertCar,
-  type Booking, type InsertCarRental, type CarRental,
+  type Booking, type InsertTourBooking, type TourBooking, type InsertCarRental, type CarRental,
   type Location, type Attribute,
   type InsertLocation, type InsertAttribute,
   type User, type InsertUser,
@@ -55,6 +55,11 @@ export interface IStorage {
   getCarRentals(filters?: { userId?: number }): Promise<CarRental[]>;
   createCarRental(rental: InsertCarRental): Promise<Booking>;
   cancelCarRental(id: number): Promise<void>;
+  
+  // Tour Bookings
+  getTourBookings(filters?: { userId?: number }): Promise<TourBooking[]>;
+  createTourBooking(booking: InsertTourBooking): Promise<Booking>;
+  cancelTourBooking(id: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -254,6 +259,74 @@ export class DatabaseStorage implements IStorage {
   }
 
   async cancelCarRental(id: number): Promise<void> {
+    await db.update(bookings).set({ status: "cancelled" }).where(eq(bookings.id, id));
+  }
+
+  // ---- Tour Bookings ----
+  async getTourBookings(filters?: { userId?: number }): Promise<TourBooking[]> {
+    const query = db
+      .select({
+        id: bookings.id,
+        userId: bookings.userId,
+        moduleType: bookings.moduleType,
+        moduleId: bookings.moduleId,
+        startDate: bookings.startDate,
+        endDate: bookings.endDate,
+        status: bookings.status,
+        buyerName: bookings.buyerName,
+        buyerEmail: bookings.buyerEmail,
+        buyerPhone: bookings.buyerPhone,
+        tour: tours.id,
+        tourTitle: tours.title,
+        tourPrice: tours.price,
+        tourImageUrl: tours.imageUrl,
+        tourLocationId: tours.locationId,
+        user: users.id,
+        userFirstName: users.firstName,
+        userLastName: users.lastName,
+        userEmail: users.email,
+      })
+      .from(bookings)
+      .leftJoin(tours, eq(bookings.moduleId, tours.id))
+      .leftJoin(users, eq(bookings.userId, users.id))
+      .where(
+        and(
+          eq(bookings.moduleType, "tour"),
+          isNull(tours.deletedAt),
+          filters?.userId ? eq(bookings.userId, filters.userId) : sql`true`
+        )
+      );
+
+    const results = await query;
+    return results.map(r => ({
+      ...r,
+      tour: {
+        id: r.tour!,
+        title: r.tourTitle!,
+        price: r.tourPrice!,
+        imageUrl: r.tourImageUrl!,
+        locationId: r.tourLocationId!,
+      },
+      user: {
+        id: r.user!,
+        firstName: r.userFirstName!,
+        lastName: r.userLastName!,
+        email: r.userEmail!,
+      },
+    })) as TourBooking[];
+  }
+
+  async createTourBooking(booking: InsertTourBooking): Promise<Booking> {
+    const parsedDates = {
+      ...booking,
+      startDate: new Date(booking.startDate as string),
+      endDate: new Date(booking.endDate as string),
+    };
+    const [result] = await db.insert(bookings).values(parsedDates as any).returning();
+    return result;
+  }
+
+  async cancelTourBooking(id: number): Promise<void> {
     await db.update(bookings).set({ status: "cancelled" }).where(eq(bookings.id, id));
   }
 }

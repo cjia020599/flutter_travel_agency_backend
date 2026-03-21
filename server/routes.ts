@@ -9,6 +9,7 @@ import { signToken, requireAuth, requireAdmin } from "./auth";
 import { eq } from "drizzle-orm";
 import { db } from "./db";
 import { locations, attributes, tours, cars, roles, tourAttributes, carAttributes, bookings } from "@shared/schema";
+import { type TourBooking } from "@shared/schema";
 import { v2 as cloudinary } from 'cloudinary';
 import multer from 'multer';
 import fs from 'fs';
@@ -443,6 +444,52 @@ app.post('/api/upload/image', requireAuth, upload.fields([{ name: 'image', maxCo
     }
     const rentals = await storage.getCarRentals({ userId: (req as any).user.id });
     res.json(rentals);
+  });
+
+  // ===================== TOUR BOOKINGS =====================
+  app.get(api.tourBookings!.list.path, requireAuth, async (req, res) => {
+    const userId = req.query.userId ? Number(req.query.userId) : undefined;
+    if (userId && userId !== (req as any).user.id) {
+      return res.status(403).json({ message: "Unauthorized to view other user's bookings" });
+    }
+    const bookings = await storage.getTourBookings({ userId: (req as any).user.id });
+    res.json(bookings);
+  });
+
+  app.post(api.tourBookings!.create.path, requireAuth, async (req, res) => {
+    try {
+      const input = api.tourBookings!.create.input.parse({
+        ...req.body,
+        tourId: Number(req.body.tourId)
+      });
+      const booking = await storage.createTourBooking({
+        ...input,
+        userId: (req as any).user.id,
+        moduleType: "tour",
+        moduleId: input.tourId,
+        status: "confirmed",
+      });
+      res.status(201).json(booking);
+    } catch (e) {
+      if (e instanceof z.ZodError) {
+        return res.status(400).json({ message: e.errors[0].message, errors: e.errors });
+      }
+      console.error("Error creating tour booking:", e);
+      res.status(500).json({ message: "Internal Error", error: e.message });
+    }
+  });
+
+  app.delete(api.tourBookings!.delete.path, requireAuth, async (req, res) => {
+    const bookingId = Number(req.params.id);
+    const booking = await db.select().from(bookings).where(eq(bookings.id, bookingId)).limit(1);
+    if (booking.length === 0 || booking[0].status === "cancelled") {
+      return res.status(404).json({ message: "Booking not found" });
+    }
+    if (booking[0].userId !== (req as any).user.id) {
+      return res.status(403).json({ message: "Unauthorized to cancel this booking" });
+    }
+    await storage.cancelTourBooking(bookingId);
+    res.status(204).end();
   });
 
   app.post(api.carRentals.create.path, requireAuth, async (req, res) => {

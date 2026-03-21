@@ -3,10 +3,10 @@ import {
   insertLocationSchema, locations,
   insertTourSchema, tours,
   insertCarSchema, cars,
-  insertCarRentalSchema,
+  insertCarRentalSchema, insertTourBookingSchema,
   attributes,
   registerSchema, loginSchema, updateProfileSchema,
-  type CarRental, type Booking,
+  type CarRental, type TourBooking, type Booking,
 } from "./schema";
 
 export const errorSchemas = {
@@ -229,12 +229,43 @@ export const api = {
         carId: z.coerce.number(),
         startDate: z.string().datetime(),
         endDate: z.string().datetime(),
+        buyerName: z.string().optional(),
+        buyerEmail: z.string().email().optional(),
+        buyerPhone: z.string().optional(),
       }),
       responses: { 201: z.custom<Booking>() },
     },
     delete: {
       method: "DELETE" as const,
       path: "/api/car-rentals/:id" as const,
+      responses: { 204: z.void(), 404: errorSchemas.notFound },
+    },
+  },
+  tourBookings: {
+    list: {
+      method: "GET" as const,
+      path: "/api/tour-bookings" as const,
+      input: z.object({
+        userId: z.string().optional(),
+      }).optional(),
+      responses: { 200: z.array(z.custom<TourBooking>()) },
+    },
+    create: {
+      method: "POST" as const,
+      path: "/api/tour-bookings" as const,
+      input: z.object({
+        tourId: z.coerce.number(),
+        startDate: z.string().datetime(),
+        endDate: z.string().datetime(),
+        buyerName: z.string().optional(),
+        buyerEmail: z.string().email().optional(),
+        buyerPhone: z.string().optional(),
+      }),
+      responses: { 201: z.custom<Booking>() },
+    },
+    delete: {
+      method: "DELETE" as const,
+      path: "/api/tour-bookings/:id" as const,
       responses: { 204: z.void(), 404: errorSchemas.notFound },
     },
   },
