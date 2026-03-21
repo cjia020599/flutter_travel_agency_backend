@@ -133,27 +133,30 @@ export async function registerRoutes(
 
   // ===================== IMAGE UPLOAD =====================
 
-  app.post('/api/upload/image', requireAuth, upload.single('image'), async (req, res) => {
+app.post('/api/upload/image', requireAuth, upload.fields([{ name: 'image', maxCount: 1 }, { name: 'images', maxCount: 1 }]), async (req, res) => {
     try {
-      if (!req.file) {
+      const files = (req.files as any[]) || [];
+      const file = files.find(f => f.fieldname === 'image' || f.fieldname === 'images');
+      
+      if (!file) {
         return res.status(400).json({ message: 'No file uploaded' });
       }
 
       // Validate file type
       const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
-      if (!allowedTypes.includes(req.file.mimetype)) {
-        fs.unlinkSync(req.file.path); // Clean up temp file
+      if (!allowedTypes.includes(file.mimetype)) {
+        fs.unlinkSync(file.path); // Clean up temp file
         return res.status(400).json({ message: 'Invalid file type. Only JPEG, PNG, WebP, and GIF are allowed.' });
       }
 
       // Validate file size (5MB max)
-      if (req.file.size > 5 * 1024 * 1024) {
-        fs.unlinkSync(req.file.path); // Clean up temp file
+      if (file.size > 5 * 1024 * 1024) {
+        fs.unlinkSync(file.path); // Clean up temp file
         return res.status(400).json({ message: 'File size must be less than 5MB' });
       }
 
       // Upload to Cloudinary with WebP conversion
-      const result = await cloudinary.uploader.upload(req.file.path, {
+      const result = await cloudinary.uploader.upload(file.path, {
         folder: 'travel-agency',
         format: 'webp', // Convert to WebP
         transformation: [
@@ -164,7 +167,7 @@ export async function registerRoutes(
       });
 
       // Clean up temp file
-      fs.unlinkSync(req.file.path);
+      fs.unlinkSync(file.path);
 
       res.json({ 
         url: result.secure_url,
@@ -172,13 +175,17 @@ export async function registerRoutes(
       });
     } catch (error) {
       console.error('Upload error:', error);
-      // Clean up temp file if it exists
-      if (req.file?.path && fs.existsSync(req.file.path)) {
-        fs.unlinkSync(req.file.path);
-      }
+      // Clean up temp files if they exist
+      const files = (req.files as any[]) || [];
+      files.forEach(f => {
+        if (f.path && fs.existsSync(f.path)) {
+          fs.unlinkSync(f.path);
+        }
+      });
       res.status(500).json({ message: 'Upload failed' });
     }
   });
+
 
   // Delete image from Cloudinary
   app.delete('/api/upload/image/:publicId', requireAuth, async (req, res) => {

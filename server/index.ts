@@ -4,7 +4,6 @@ import { serveStatic } from "./static";
 import { createServer } from "http";
 import cors from "cors";
 import { v2 as cloudinary } from 'cloudinary';
-import multer from 'multer';
 import fs from 'fs';
 
 // Configure Cloudinary
@@ -14,8 +13,6 @@ cloudinary.config({
   api_secret: '2tlLqmDauCpGEgOYL7vfgZcoJgg',
 });
 
-// Configure multer for temporary file storage
-const upload = multer({ dest: 'uploads/' });
 
 const app = express();
 const httpServer = createServer(app);
