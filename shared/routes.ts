@@ -20,6 +20,7 @@ export const createTourInput = insertTourSchema.extend({
   salePrice: z.union([z.coerce.string(), z.null()]).optional().transform(val => val === null ? undefined : val),
   mapLat: z.union([z.coerce.string(), z.null()]).optional().transform(val => val === null ? undefined : val),
   mapLng: z.union([z.coerce.string(), z.null()]).optional().transform(val => val === null ? undefined : val),
+  imageUrl: z.string().url().optional(),
 });
 export const updateTourInput = createTourInput.partial();
 
@@ -29,6 +30,7 @@ export const createCarInput = insertCarSchema.extend({
   salePrice: z.union([z.coerce.string(), z.null()]).optional().transform(val => val === null ? undefined : val),
   mapLat: z.union([z.coerce.string(), z.null()]).optional().transform(val => val === null ? undefined : val),
   mapLng: z.union([z.coerce.string(), z.null()]).optional().transform(val => val === null ? undefined : val),
+  imageUrl: z.string().url().optional(),
 });
 export const updateCarInput = createCarInput.partial();
 

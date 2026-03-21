@@ -8,6 +8,36 @@ import { registerSchema, loginSchema, updateProfileSchema } from "@shared/schema
 import { signToken, requireAuth, requireAdmin } from "./auth";
 import { eq } from "drizzle-orm";
 import { locations, attributes, tours, cars, roles, tourAttributes, carAttributes } from "@shared/schema";
+import { v2 as cloudinary } from 'cloudinary';
+import multer from 'multer';
+import fs from 'fs';
+
+// Configure multer for temporary file storage
+const upload = multer({ dest: 'uploads/' });
+
+// Helper function to extract publicId from Cloudinary URL
+function extractPublicId(url: string): string | null {
+  if (!url || !url.includes('cloudinary.com')) return null;
+  
+  // URL format: https://res.cloudinary.com/{cloud_name}/image/upload/v{version}/{public_id}.{format}
+  const matches = url.match(/\/upload\/(?:v\d+\/)?(.+)\.[a-zA-Z]+$/);
+  return matches ? matches[1] : null;
+}
+
+// Helper function to delete old image
+async function deleteOldImage(oldImageUrl: string | null) {
+  if (!oldImageUrl) return;
+  
+  const publicId = extractPublicId(oldImageUrl);
+  if (publicId) {
+    try {
+      await cloudinary.uploader.destroy(publicId);
+      console.log('Deleted old image:', publicId);
+    } catch (error) {
+      console.error('Failed to delete old image:', error);
+    }
+  }
+}
 
 export async function registerRoutes(
   httpServer: Server,
@@ -101,6 +131,78 @@ export async function registerRoutes(
     }
   });
 
+  // ===================== IMAGE UPLOAD =====================
+
+  app.post('/api/upload/image', requireAuth, upload.single('image'), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: 'No file uploaded' });
+      }
+
+      // Validate file type
+      const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+      if (!allowedTypes.includes(req.file.mimetype)) {
+        fs.unlinkSync(req.file.path); // Clean up temp file
+        return res.status(400).json({ message: 'Invalid file type. Only JPEG, PNG, WebP, and GIF are allowed.' });
+      }
+
+      // Validate file size (5MB max)
+      if (req.file.size > 5 * 1024 * 1024) {
+        fs.unlinkSync(req.file.path); // Clean up temp file
+        return res.status(400).json({ message: 'File size must be less than 5MB' });
+      }
+
+      // Upload to Cloudinary with WebP conversion
+      const result = await cloudinary.uploader.upload(req.file.path, {
+        folder: 'travel-agency',
+        format: 'webp', // Convert to WebP
+        transformation: [
+          { width: 1200, height: 800, crop: 'limit' }, // Resize if larger
+          { quality: 'auto' }, // Auto quality optimization
+          { fetch_format: 'auto' } // Auto format optimization
+        ]
+      });
+
+      // Clean up temp file
+      fs.unlinkSync(req.file.path);
+
+      res.json({ 
+        url: result.secure_url,
+        publicId: result.public_id 
+      });
+    } catch (error) {
+      console.error('Upload error:', error);
+      // Clean up temp file if it exists
+      if (req.file?.path && fs.existsSync(req.file.path)) {
+        fs.unlinkSync(req.file.path);
+      }
+      res.status(500).json({ message: 'Upload failed' });
+    }
+  });
+
+  // Delete image from Cloudinary
+  app.delete('/api/upload/image/:publicId', requireAuth, async (req, res) => {
+    try {
+      const { publicId } = req.params;
+      
+      if (!publicId) {
+        return res.status(400).json({ message: 'Public ID is required' });
+      }
+
+      // Delete from Cloudinary
+      const result = await cloudinary.uploader.destroy(publicId);
+      
+      if (result.result === 'ok') {
+        res.json({ message: 'Image deleted successfully' });
+      } else {
+        res.status(400).json({ message: 'Failed to delete image' });
+      }
+    } catch (error) {
+      console.error('Delete error:', error);
+      res.status(500).json({ message: 'Delete failed' });
+    }
+  });
+
   // ===================== ADMIN =====================
 
   app.get(api.admin.roles.path, requireAuth, async (req, res) => {
@@ -186,6 +288,16 @@ export async function registerRoutes(
     try {
       const input = api.tours.update.input.parse(req.body);
       const { attributeIds, ...tourData } = input;
+      
+      // Get current tour to check for image changes
+      const currentTour = await storage.getTour(Number(req.params.id));
+      if (!currentTour) return res.status(404).json({ message: "Not found" });
+      
+      // If imageUrl is being changed or removed, delete old image
+      if (tourData.imageUrl !== undefined && tourData.imageUrl !== currentTour.imageUrl) {
+        await deleteOldImage(currentTour.imageUrl);
+      }
+      
       const tour = await storage.updateTour(Number(req.params.id), tourData);
       if (!tour) return res.status(404).json({ message: "Not found" });
       if (attributeIds !== undefined) {
@@ -207,6 +319,10 @@ export async function registerRoutes(
   });
 
   app.delete(api.tours.delete.path, async (req, res) => {
+    const tour = await storage.getTour(Number(req.params.id));
+    if (tour) {
+      await deleteOldImage(tour.imageUrl);
+    }
     await storage.deleteTour(Number(req.params.id));
     res.status(204).end();
   });
@@ -248,6 +364,16 @@ export async function registerRoutes(
     try {
       const input = api.cars.update.input.parse(req.body);
       const { attributeIds, ...carData } = input;
+      
+      // Get current car to check for image changes
+      const currentCar = await storage.getCar(Number(req.params.id));
+      if (!currentCar) return res.status(404).json({ message: "Not found" });
+      
+      // If imageUrl is being changed or removed, delete old image
+      if (carData.imageUrl !== undefined && carData.imageUrl !== currentCar.imageUrl) {
+        await deleteOldImage(currentCar.imageUrl);
+      }
+      
       const car = await storage.updateCar(Number(req.params.id), carData);
       if (!car) return res.status(404).json({ message: "Not found" });
       if (attributeIds !== undefined) {
@@ -269,6 +395,10 @@ export async function registerRoutes(
   });
 
   app.delete(api.cars.delete.path, async (req, res) => {
+    const car = await storage.getCar(Number(req.params.id));
+    if (car) {
+      await deleteOldImage(car.imageUrl);
+    }
     await storage.deleteCar(Number(req.params.id));
     res.status(204).end();
   });
