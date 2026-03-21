@@ -3,8 +3,10 @@ import {
   insertLocationSchema, locations,
   insertTourSchema, tours,
   insertCarSchema, cars,
+  insertCarRentalSchema,
   attributes,
   registerSchema, loginSchema, updateProfileSchema,
+  type CarRental, type Booking,
 } from "./schema";
 
 export const errorSchemas = {
@@ -209,6 +211,31 @@ export const api = {
       method: "GET" as const,
       path: "/api/attributes" as const,
       responses: { 200: z.array(z.custom<typeof attributes.$inferSelect>()) },
+    },
+  },
+  carRentals: {
+    list: {
+      method: "GET" as const,
+      path: "/api/car-rentals" as const,
+      input: z.object({
+        userId: z.string().optional(),
+      }).optional(),
+      responses: { 200: z.array(z.custom<CarRental>()) },
+    },
+    create: {
+      method: "POST" as const,
+      path: "/api/car-rentals" as const,
+      input: z.object({
+        carId: z.coerce.number(),
+        startDate: z.string().datetime(),
+        endDate: z.string().datetime(),
+      }),
+      responses: { 201: z.custom<Booking>() },
+    },
+    delete: {
+      method: "DELETE" as const,
+      path: "/api/car-rentals/:id" as const,
+      responses: { 204: z.void(), 404: errorSchemas.notFound },
     },
   },
 };

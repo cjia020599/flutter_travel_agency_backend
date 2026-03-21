@@ -7,7 +7,8 @@ import { api } from "@shared/routes";
 import { registerSchema, loginSchema, updateProfileSchema } from "@shared/schema";
 import { signToken, requireAuth, requireAdmin } from "./auth";
 import { eq } from "drizzle-orm";
-import { locations, attributes, tours, cars, roles, tourAttributes, carAttributes } from "@shared/schema";
+import { db } from "./db";
+import { locations, attributes, tours, cars, roles, tourAttributes, carAttributes, bookings } from "@shared/schema";
 import { v2 as cloudinary } from 'cloudinary';
 import multer from 'multer';
 import fs from 'fs';
@@ -432,6 +433,48 @@ app.post('/api/upload/image', requireAuth, upload.fields([{ name: 'image', maxCo
 
   app.get(api.attributes.list.path, async (req, res) => {
     res.json(await storage.getAttributes());
+  });
+
+  // ===================== CAR RENTALS =====================
+  app.get(api.carRentals.list.path, requireAuth, async (req, res) => {
+    const userId = req.query.userId ? Number(req.query.userId) : undefined;
+    if (userId && userId !== (req as any).user.id) {
+      return res.status(403).json({ message: "Unauthorized to view other user's rentals" });
+    }
+    const rentals = await storage.getCarRentals({ userId: (req as any).user.id });
+    res.json(rentals);
+  });
+
+  app.post(api.carRentals.create.path, requireAuth, async (req, res) => {
+    try {
+      const input = api.carRentals.create.input.parse(req.body);
+      const rental = await storage.createCarRental({
+        ...input,
+        userId: (req as any).user.id,
+        moduleType: "car",
+        status: "confirmed",
+      });
+      res.status(201).json(rental);
+    } catch (e) {
+      if (e instanceof z.ZodError) {
+        return res.status(400).json({ message: e.errors[0].message });
+      }
+      console.error("Error creating rental:", e);
+      res.status(500).json({ message: "Internal Error" });
+    }
+  });
+
+  app.delete(api.carRentals.delete.path, requireAuth, async (req, res) => {
+    const rentalId = Number(req.params.id);
+    const rental = await db.select().from(bookings).where(eq(bookings.id, rentalId)).limit(1);
+    if (rental.length === 0 || rental[0].status === "cancelled") {
+      return res.status(404).json({ message: "Rental not found" });
+    }
+    if (rental[0].userId !== (req as any).user.id) {
+      return res.status(403).json({ message: "Unauthorized to cancel this rental" });
+    }
+    await storage.cancelCarRental(rentalId);
+    res.status(204).end();
   });
 
   // ===================== SEED =====================

@@ -151,6 +151,7 @@ export const carAttributes = pgTable("car_attributes", {
 
 export const bookings = pgTable("bookings", {
   id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id),
   moduleType: text("module_type").notNull(),
   moduleId: integer("module_id").notNull(),
   startDate: timestamp("start_date").notNull(),
@@ -169,6 +170,11 @@ export const insertTourSchema = createInsertSchema(tours).omit({ id: true, delet
 export const insertCarSchema = createInsertSchema(cars).omit({ id: true, deletedAt: true });
 export const insertBookingSchema = createInsertSchema(bookings).omit({ id: true });
 
+export const insertCarRentalSchema = insertBookingSchema.extend({
+  moduleType: z.literal("car"),
+  userId: z.coerce.number(),
+});
+
 // ==================== TYPES ====================
 export type Role = typeof roles.$inferSelect;
 export type User = typeof users.$inferSelect;
@@ -179,6 +185,13 @@ export type Attribute = typeof attributes.$inferSelect;
 export type Tour = typeof tours.$inferSelect;
 export type Car = typeof cars.$inferSelect;
 export type Booking = typeof bookings.$inferSelect;
+
+export type CarRental = Booking & {
+  car: Pick<Car, "id" | "title" | "price" | "imageUrl" | "locationId">;
+  user: Pick<User, "id" | "firstName" | "lastName" | "email">;
+};
+
+export type InsertCarRental = z.infer<typeof insertCarRentalSchema>;
 
 export type InsertRole = z.infer<typeof insertRoleSchema>;
 export type InsertUser = z.infer<typeof insertUserSchema>;

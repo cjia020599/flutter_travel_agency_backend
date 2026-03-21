@@ -4,6 +4,7 @@ import {
   users, roles, vendorProfiles,
   type Tour, type InsertTour,
   type Car, type InsertCar,
+  type Booking, type InsertCarRental, type CarRental,
   type Location, type Attribute,
   type InsertLocation, type InsertAttribute,
   type User, type InsertUser,
@@ -11,7 +12,7 @@ import {
   type VendorProfile, type InsertVendorProfile,
   type AuthUser, type UpdateProfileInput,
 } from "@shared/schema";
-import { eq } from "drizzle-orm";
+import { eq, and, isNull, sql } from "drizzle-orm";
 
 export interface IStorage {
   // Tours
@@ -49,6 +50,11 @@ export interface IStorage {
   // Roles
   getRoles(): Promise<Role[]>;
   getRoleByCode(code: string): Promise<Role | undefined>;
+
+  // Car Rentals
+  getCarRentals(filters?: { userId?: number }): Promise<CarRental[]>;
+  createCarRental(rental: InsertCarRental): Promise<Booking>;
+  cancelCarRental(id: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -184,6 +190,66 @@ export class DatabaseStorage implements IStorage {
   async getRoleByCode(code: string): Promise<Role | undefined> {
     const [r] = await db.select().from(roles).where(eq(roles.code, code));
     return r;
+  }
+
+  // ---- Car Rentals ----
+  async getCarRentals(filters?: { userId?: number }): Promise<CarRental[]> {
+    const query = db
+      .select({
+        id: bookings.id,
+        userId: bookings.userId,
+        moduleType: bookings.moduleType,
+        moduleId: bookings.moduleId,
+        startDate: bookings.startDate,
+        endDate: bookings.endDate,
+        status: bookings.status,
+        car: cars.id,
+        carTitle: cars.title,
+        carPrice: cars.price,
+        carImageUrl: cars.imageUrl,
+        carLocationId: cars.locationId,
+        user: users.id,
+        userFirstName: users.firstName,
+        userLastName: users.lastName,
+        userEmail: users.email,
+      })
+      .from(bookings)
+      .leftJoin(cars, eq(bookings.moduleId, cars.id))
+      .leftJoin(users, eq(bookings.userId, users.id))
+      .where(
+        and(
+          eq(bookings.moduleType, "car"),
+          isNull(cars.deletedAt),
+          filters?.userId ? eq(bookings.userId, filters.userId) : sql`true`
+        )
+      );
+
+    const results = await query;
+    return results.map(r => ({
+      ...r,
+      car: {
+        id: r.car!,
+        title: r.carTitle!,
+        price: r.carPrice!,
+        imageUrl: r.carImageUrl!,
+        locationId: r.carLocationId!,
+      },
+      user: {
+        id: r.user!,
+        firstName: r.userFirstName!,
+        lastName: r.userLastName!,
+        email: r.userEmail!,
+      },
+    })) as CarRental[];
+  }
+
+  async createCarRental(rental: InsertCarRental): Promise<Booking> {
+    const [result] = await db.insert(bookings).values(rental).returning();
+    return result;
+  }
+
+  async cancelCarRental(id: number): Promise<void> {
+    await db.update(bookings).set({ status: "cancelled" }).where(eq(bookings.id, id));
   }
 }
 
