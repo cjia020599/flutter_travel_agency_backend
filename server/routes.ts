@@ -135,10 +135,12 @@ export async function registerRoutes(
 
 app.post('/api/upload/image', requireAuth, upload.fields([{ name: 'image', maxCount: 1 }, { name: 'images', maxCount: 1 }]), async (req, res) => {
     try {
-      const files = (req.files as any[]) || [];
-      const file = files.find(f => f.fieldname === 'image' || f.fieldname === 'images');
+      console.log('req.files:', req.files);
+      const filesArray = Array.isArray(req.files) ? req.files : [];
+      const file = filesArray.find((f: any) => f.fieldname === 'image' || f.fieldname === 'images');
       
       if (!file) {
+        console.log('No file found. Available fields:', filesArray.map((f: any) => f.fieldname));
         return res.status(400).json({ message: 'No file uploaded' });
       }
 
