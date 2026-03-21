@@ -6,12 +6,13 @@ import cors from "cors";
 import { v2 as cloudinary } from 'cloudinary';
 import fs from 'fs';
 
-// Configure Cloudinary
+// Configure Cloudinary - UPDATE YOUR CLOUDINARY CREDENTIALS
 cloudinary.config({
-  cloud_name: 'Root',
+  cloud_name: 'das4hjjvf',
   api_key: '388879767285732',
   api_secret: '2tlLqmDauCpGEgOYL7vfgZcoJgg',
 });
+console.log('Cloudinary configured:', cloudinary.config().cloud_name);
 
 
 const app = express();
