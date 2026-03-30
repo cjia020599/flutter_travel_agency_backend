@@ -4,7 +4,7 @@ import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { storage } from "./storage";
 import { api } from "@shared/routes";
-import { registerSchema, loginSchema, updateProfileSchema } from "@shared/schema";
+import { registerSchema, loginSchema, updateProfileSchema, cars as carsTable, tours as toursTable, ratings as ratingsTable } from "@shared/schema";
 import { signToken, requireAuth, requireAdmin } from "./auth";
 import { eq } from "drizzle-orm";
 import { db } from "./db";
@@ -13,6 +13,8 @@ import { type TourBooking } from "@shared/schema";
 import { v2 as cloudinary } from 'cloudinary';
 import multer from 'multer';
 import fs from 'fs';
+
+type MulterFiles = { [fieldname: string]: Express.Multer.File[] };
 
 // Configure multer for temporary file storage
 const upload = multer({ dest: 'uploads/' });
@@ -142,11 +144,12 @@ app.post('/api/upload/image', requireAuth, upload.fields([{ name: 'image', maxCo
       console.log('filesArray:', filesArray.map((f: any) => ({fieldname: f.fieldname, mimetype: f.mimetype})));
       
       // Handle multer.fields structure: req.files[fieldname][]
-      let file = null;
-      if (req.files['image'] && Array.isArray(req.files['image'])) {
-        file = req.files['image'][0];
-      } else if (req.files['images'] && Array.isArray(req.files['images'])) {
-        file = req.files['images'][0];
+      const files = (req.files ?? {}) as MulterFiles;
+      let file: Express.Multer.File | null = null;
+      if (files.image && Array.isArray(files.image)) {
+        file = files.image[0];
+      } else if (files.images && Array.isArray(files.images)) {
+        file = files.images[0];
       }
       
       if (!file) {
@@ -206,7 +209,8 @@ app.post('/api/upload/image', requireAuth, upload.fields([{ name: 'image', maxCo
   // Delete image from Cloudinary
   app.delete('/api/upload/image/:publicId', requireAuth, async (req, res) => {
     try {
-      const { publicId } = req.params;
+      const publicIdParam = req.params.publicId;
+      const publicId = Array.isArray(publicIdParam) ? publicIdParam[0] : publicIdParam;
       
       if (!publicId) {
         return res.status(400).json({ message: 'Public ID is required' });
@@ -463,10 +467,14 @@ app.post('/api/upload/image', requireAuth, upload.fields([{ name: 'image', maxCo
         tourId: Number(req.body.tourId)
       });
       const booking = await storage.createTourBooking({
-        ...input,
         userId: (req as any).user.id,
         moduleType: "tour",
         moduleId: input.tourId,
+        startDate: new Date(input.startDate),
+        endDate: new Date(input.endDate),
+        buyerName: input.buyerName,
+        buyerEmail: input.buyerEmail,
+        buyerPhone: input.buyerPhone,
         status: "confirmed",
       });
       res.status(201).json(booking);
@@ -475,7 +483,8 @@ app.post('/api/upload/image', requireAuth, upload.fields([{ name: 'image', maxCo
         return res.status(400).json({ message: e.errors[0].message, errors: e.errors });
       }
       console.error("Error creating tour booking:", e);
-      res.status(500).json({ message: "Internal Error", error: e.message });
+      const errorMessage = e instanceof Error ? e.message : "Unknown error";
+      res.status(500).json({ message: "Internal Error", error: errorMessage });
     }
   });
 
@@ -499,10 +508,14 @@ app.post('/api/upload/image', requireAuth, upload.fields([{ name: 'image', maxCo
         carId: Number(req.body.carId)
       });
       const rental = await storage.createCarRental({
-        ...input,
         userId: (req as any).user.id,
         moduleType: "car",
         moduleId: input.carId,
+        startDate: new Date(input.startDate),
+        endDate: new Date(input.endDate),
+        buyerName: input.buyerName,
+        buyerEmail: input.buyerEmail,
+        buyerPhone: input.buyerPhone,
         status: "confirmed",
       });
       res.status(201).json(rental);
@@ -511,7 +524,8 @@ app.post('/api/upload/image', requireAuth, upload.fields([{ name: 'image', maxCo
         return res.status(400).json({ message: e.errors[0].message, errors: e.errors });
       }
       console.error("Error creating rental:", e);
-      res.status(500).json({ message: "Internal Error", error: e.message });
+      const errorMessage = e instanceof Error ? e.message : "Unknown error";
+      res.status(500).json({ message: "Internal Error", error: errorMessage });
     }
   });
 

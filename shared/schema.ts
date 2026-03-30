@@ -162,6 +162,17 @@ export const bookings = pgTable("bookings", {
   status: text("status").notNull().default("confirmed"),
 });
 
+export const ratings = pgTable("ratings", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id),
+  moduleType: text("module_type").notNull(),
+  moduleId: integer("module_id").notNull(),
+  stars: integer("stars").notNull(),
+  comment: text("comment"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // ==================== INSERT SCHEMAS ====================
 export const insertRoleSchema = createInsertSchema(roles).omit({ id: true, createdAt: true });
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true });
@@ -175,6 +186,26 @@ export const insertBookingSchema = createInsertSchema(bookings).omit({ id: true 
   buyerName: z.string().optional(),
   buyerEmail: z.string().email().optional(),
   buyerPhone: z.string().optional(),
+});
+
+export const insertRatingSchema = createInsertSchema(ratings).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const createRatingInputSchema = z.object({
+  moduleType: z.enum(["car", "tour"]),
+  moduleId: z.coerce.number().int().positive(),
+  stars: z.coerce.number().int().min(1).max(5),
+  comment: z.string().trim().min(1).max(2000).optional(),
+});
+
+export const updateRatingInputSchema = z.object({
+  stars: z.coerce.number().int().min(1).max(5).optional(),
+  comment: z.string().trim().min(1).max(2000).optional(),
+}).refine((data) => data.stars !== undefined || data.comment !== undefined, {
+  message: "At least one field (stars or comment) is required",
 });
 
 export const insertCarRentalSchema = insertBookingSchema.extend({
@@ -197,6 +228,7 @@ export type Attribute = typeof attributes.$inferSelect;
 export type Tour = typeof tours.$inferSelect;
 export type Car = typeof cars.$inferSelect;
 export type Booking = typeof bookings.$inferSelect;
+export type Rating = typeof ratings.$inferSelect;
 
 export type CarRental = Booking & {
   car: Pick<Car, "id" | "title" | "price" | "imageUrl" | "locationId">;
@@ -220,6 +252,9 @@ export type InsertAttribute = z.infer<typeof insertAttributeSchema>;
 export type InsertTour = z.infer<typeof insertTourSchema>;
 export type InsertCar = z.infer<typeof insertCarSchema>;
 export type InsertBooking = z.infer<typeof insertBookingSchema>;
+export type InsertRating = z.infer<typeof insertRatingSchema>;
+export type CreateRatingInput = z.infer<typeof createRatingInputSchema>;
+export type UpdateRatingInput = z.infer<typeof updateRatingInputSchema>;
 
 // ==================== AUTH SCHEMAS ====================
 export const registerSchema = z.object({

@@ -44,9 +44,32 @@ export default function CarForm() {
   useEffect(() => {
     if (car && isEditing) {
       form.reset({
-        ...car,
+        title: car.title,
+        slug: car.slug,
+        content: car.content ?? "",
+        videoUrl: car.videoUrl,
+        imageUrl: car.imageUrl ?? undefined,
+        status: car.status,
+        isFeatured: car.isFeatured ?? false,
+        authorId: car.authorId ?? undefined,
+        passenger: car.passenger ?? undefined,
+        gearShift: car.gearShift ?? undefined,
+        baggage: car.baggage ?? undefined,
+        door: car.door ?? undefined,
+        inventoryCount: car.inventoryCount ?? undefined,
+        minDayStay: car.minDayStay ?? undefined,
+        minDayBeforeBooking: car.minDayBeforeBooking ?? undefined,
+        mapLat: car.mapLat?.toString() || undefined,
+        mapLng: car.mapLng?.toString() || undefined,
+        mapZoom: car.mapZoom ?? undefined,
+        realAddress: car.realAddress ?? undefined,
         price: car.price?.toString() || "",
         salePrice: car.salePrice?.toString() || "",
+        extraPrices: car.extraPrices as any,
+        serviceFees: car.serviceFees as any,
+        fixedDates: car.fixedDates ?? undefined,
+        openHours: car.openHours as any,
+        locationId: car.locationId ?? undefined,
       });
     }
   }, [car, isEditing, form]);

@@ -1,11 +1,18 @@
-# Image Upload Fix
-## Status: 🔄 In Progress - Backend fix ready
+# Ratings API Implementation TODO
 
-1. ✅ Diagnose: Multer "Unexpected field" - frontend 'images', backend 'image'
-2. 🔄 Backend: Edit routes.ts to accept both fields (multer.fields)
-3. ⏳ Frontend: Locate upload code & standardize 'image' field  
-4. ⏳ Add imageUrl field/UI to TourForm/CarForm 
-5. ✅ Test PNG/JPG uploads
-6. ✅ Cleanup server/index.ts multer duplicate
-
-**Next:** Apply backend fix → PNG uploads work immediately
+- [ ] Update `shared/schema.ts`
+  - [ ] Add `ratings` table
+  - [ ] Add insert/create/update rating schemas
+  - [ ] Add rating types
+- [ ] Update `server/storage.ts`
+  - [ ] Extend `IStorage` for ratings CRUD
+  - [ ] Implement ratings CRUD in `DatabaseStorage`
+  - [ ] Join users to include creator username in responses
+- [ ] Update `shared/routes.ts`
+  - [ ] Add `api.ratings` route contracts
+- [ ] Update `server/routes.ts`
+  - [ ] Add ratings CRUD endpoints
+  - [ ] Add module existence checks for car/tour
+  - [ ] Add ownership checks for update/delete
+- [ ] Run type checks
+- [ ] Document required request payloads and endpoint usage

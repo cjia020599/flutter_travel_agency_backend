@@ -230,8 +230,17 @@ export class DatabaseStorage implements IStorage {
       );
 
     const results = await query;
-    return results.map(r => ({
-      ...r,
+    return results.map((r) => ({
+      id: r.id,
+      userId: r.userId,
+      moduleType: r.moduleType,
+      moduleId: r.moduleId,
+      startDate: r.startDate,
+      endDate: r.endDate,
+      status: r.status,
+      buyerName: null,
+      buyerEmail: null,
+      buyerPhone: null,
       car: {
         id: r.car!,
         title: r.carTitle!,
@@ -245,16 +254,11 @@ export class DatabaseStorage implements IStorage {
         lastName: r.userLastName!,
         email: r.userEmail!,
       },
-    })) as CarRental[];
+    }));
   }
 
   async createCarRental(rental: InsertCarRental): Promise<Booking> {
-    const parsedDates = {
-      ...rental,
-      startDate: new Date(rental.startDate as string),
-      endDate: new Date(rental.endDate as string),
-    };
-    const [result] = await db.insert(bookings).values(parsedDates as any).returning();
+    const [result] = await db.insert(bookings).values(rental as any).returning();
     return result;
   }
 
@@ -317,12 +321,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createTourBooking(booking: InsertTourBooking): Promise<Booking> {
-    const parsedDates = {
-      ...booking,
-      startDate: new Date(booking.startDate as string),
-      endDate: new Date(booking.endDate as string),
-    };
-    const [result] = await db.insert(bookings).values(parsedDates as any).returning();
+    const [result] = await db.insert(bookings).values(booking as any).returning();
     return result;
   }
 

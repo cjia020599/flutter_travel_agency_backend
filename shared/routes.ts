@@ -6,6 +6,7 @@ import {
   insertCarRentalSchema, insertTourBookingSchema,
   attributes,
   registerSchema, loginSchema, updateProfileSchema,
+  createRatingInputSchema, updateRatingInputSchema, type Rating,
   type CarRental, type TourBooking, type Booking,
 } from "./schema";
 
@@ -266,6 +267,40 @@ export const api = {
     delete: {
       method: "DELETE" as const,
       path: "/api/tour-bookings/:id" as const,
+      responses: { 204: z.void(), 404: errorSchemas.notFound },
+    },
+  },
+  ratings: {
+    list: {
+      method: "GET" as const,
+      path: "/api/ratings" as const,
+      input: z.object({
+        moduleType: z.enum(["car", "tour"]).optional(),
+        moduleId: z.coerce.number().optional(),
+        userId: z.coerce.number().optional(),
+      }).optional(),
+      responses: { 200: z.array(z.custom<Rating & { username: string }>()) },
+    },
+    get: {
+      method: "GET" as const,
+      path: "/api/ratings/:id" as const,
+      responses: { 200: z.custom<Rating & { username: string }>(), 404: errorSchemas.notFound },
+    },
+    create: {
+      method: "POST" as const,
+      path: "/api/ratings" as const,
+      input: createRatingInputSchema,
+      responses: { 201: z.custom<Rating>(), 400: errorSchemas.validation },
+    },
+    update: {
+      method: "PUT" as const,
+      path: "/api/ratings/:id" as const,
+      input: updateRatingInputSchema,
+      responses: { 200: z.custom<Rating>(), 400: errorSchemas.validation, 404: errorSchemas.notFound },
+    },
+    delete: {
+      method: "DELETE" as const,
+      path: "/api/ratings/:id" as const,
       responses: { 204: z.void(), 404: errorSchemas.notFound },
     },
   },
