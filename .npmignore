@@ -1,0 +1,10 @@
+node_modules
+client
+script
+src
+*.ts
+*.tsx
+.env
+.git
+README.md
+

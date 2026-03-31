@@ -46,16 +46,19 @@ async function buildAll() {
   ];
   const externals = allDeps.filter((dep) => !allowlist.includes(dep));
 
-  await esbuild({
+await esbuild({
     entryPoints: ["server/index.ts"],
     platform: "node",
     bundle: true,
-    format: "cjs",
-    outfile: "dist/index.cjs",
+    format: "esm",
+    outfile: "dist/index.mjs",
     define: {
       "process.env.NODE_ENV": '"production"',
     },
-    minify: true,
+    minify: false,
+    sourcemap: true,
+    target: "node18",
+    inject: ["./node_modules/drizzle-orm/runtime.js"], // Fix template literal runtime
     external: externals,
     logLevel: "info",
   });
