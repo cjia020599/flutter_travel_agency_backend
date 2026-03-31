@@ -219,6 +219,59 @@ export const insertTourBookingSchema = insertBookingSchema.extend({
 });
 
 // ==================== TYPES ====================
+
+// ==================== REPORT TYPES ====================
+export interface TourSummary {
+  status: string;
+  count: number;
+  avgPrice: number;
+  totalRevenue?: number;
+}
+
+export interface CarSummary {
+  status: string;
+  count: number;
+  avgPrice: number;
+  avgPassenger: number;
+}
+
+export interface BookingStats {
+  totalBookings: number;
+  totalRevenue: number;
+  confirmed: number;
+  cancelled: number;
+  byModuleType: { type: 'tour' | 'car'; count: number; revenue: number }[];
+  dateRange?: { from: string; to: string };
+}
+
+export interface LocationStats {
+  id: number;
+  name: string;
+  tours: number;
+  cars: number;
+  bookings: number;
+  revenue: number;
+}
+
+export interface ReportFilters {
+  vendorId?: number;
+  locationId?: number;
+  status?: string;
+  fromDate?: string;
+  toDate?: string;
+}
+
+
+// Zod schemas for API
+export const reportFiltersSchema = z.object({
+  vendorId: z.coerce.number().optional(),
+  locationId: z.coerce.number().optional(),
+  status: z.string().optional(),
+  fromDate: z.string().optional(),
+  toDate: z.string().optional(),
+});
+
+
 export type Role = typeof roles.$inferSelect;
 export type User = typeof users.$inferSelect;
 export type VendorProfile = typeof vendorProfiles.$inferSelect;

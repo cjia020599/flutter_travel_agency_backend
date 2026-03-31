@@ -1,7 +1,9 @@
-import { Map, CarFront, MapPin, TrendingUp } from "lucide-react";
+import { Map, CarFront, MapPin, TrendingUp, DollarSign } from "lucide-react";
 import { useTours } from "@/hooks/use-tours";
 import { useCars } from "@/hooks/use-cars";
 import { useLocations } from "@/hooks/use-locations";
+import { useTourSummary, useCarSummary, useBookingStats } from "@/hooks/use-reports";
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -9,13 +11,23 @@ export default function Dashboard() {
   const { data: tours, isLoading: loadingTours } = useTours();
   const { data: cars, isLoading: loadingCars } = useCars();
   const { data: locations, isLoading: loadingLocations } = useLocations();
+  const { data: tourSummary } = useTourSummary();
+  const { data: carSummary } = useCarSummary();
+  const { data: bookingStats } = useBookingStats();
+
+  const totalTours = tourSummary?.reduce((sum, s) => sum + s.count, 0) || tours?.length || 0;
+  const totalCars = carSummary?.reduce((sum, s) => sum + s.count, 0) || cars?.length || 0;
+  const totalRevenue = bookingStats?.totalRevenue?.toLocaleString('en-US', { style: 'currency', currency: 'USD' }) || '$0';
+  const activeBookings = bookingStats?.confirmed || 0;
 
   const stats = [
-    { title: "Total Tours", value: tours?.length || 0, icon: Map, isLoading: loadingTours },
-    { title: "Total Cars", value: cars?.length || 0, icon: CarFront, isLoading: loadingCars },
+    { title: "Total Tours", value: totalTours, icon: Map, isLoading: loadingTours },
+    { title: "Total Cars", value: totalCars, icon: CarFront, isLoading: loadingCars },
     { title: "Destinations", value: locations?.length || 0, icon: MapPin, isLoading: loadingLocations },
-    { title: "Active Bookings", value: 124, icon: TrendingUp, isLoading: false }, // Mock data for dashboard
+    { title: "Revenue", value: totalRevenue, icon: DollarSign, isLoading: !!bookingStats },
+    { title: "Confirmed Bookings", value: activeBookings, icon: TrendingUp, isLoading: !!bookingStats },
   ];
+
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">

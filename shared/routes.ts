@@ -202,6 +202,33 @@ export const api = {
   },
   locations: {
     list: {
+  reports: {
+    tours: {
+      method: "GET" as const,
+      path: "/api/reports/tours" as const,
+      input: reportFiltersSchema.optional(),
+      responses: { 200: z.array(z.custom<TourSummary>()) }
+    },
+    cars: {
+      method: "GET" as const,
+      path: "/api/reports/cars" as const,
+      input: reportFiltersSchema.optional(),
+      responses: { 200: z.array(z.custom<CarSummary>()) }
+    },
+    bookings: {
+      method: "GET" as const,
+      path: "/api/reports/bookings" as const,
+      input: reportFiltersSchema.optional(),
+      responses: { 200: z.custom<BookingStats>() }
+    },
+    locations: {
+      method: "GET" as const,
+      path: "/api/reports/locations" as const,
+      input: reportFiltersSchema.optional(),
+      responses: { 200: z.array(z.custom<LocationStats>()) }
+    }
+  },
+
       method: "GET" as const,
       path: "/api/locations" as const,
       responses: { 200: z.array(z.custom<typeof locations.$inferSelect>()) },

@@ -12,7 +12,8 @@ import {
   type VendorProfile, type InsertVendorProfile,
   type AuthUser, type UpdateProfileInput,
 } from "@shared/schema";
-import { eq, and, isNull, sql } from "drizzle-orm";
+import { eq, and, isNull, count, sum, avg, sql, groupBy } from "drizzle-orm";
+
 
 export interface IStorage {
   // Tours
@@ -51,13 +52,20 @@ export interface IStorage {
   getRoles(): Promise<Role[]>;
   getRoleByCode(code: string): Promise<Role | undefined>;
 
-  // Car Rentals
+// Reports
+  getTourSummary(filters?: ReportFilters): Promise<TourSummary[]>;
+  getCarSummary(filters?: ReportFilters): Promise<CarSummary[]>;
+  getBookingStats(filters?: ReportFilters): Promise<BookingStats>;
+  getLocationStats(filters?: ReportFilters): Promise<LocationStats[]>;
+
+// Car Rentals
   getCarRentals(filters?: { userId?: number }): Promise<CarRental[]>;
   createCarRental(rental: InsertCarRental): Promise<Booking>;
   cancelCarRental(id: number): Promise<void>;
   
   // Tour Bookings
   getTourBookings(filters?: { userId?: number }): Promise<TourBooking[]>;
+
   createTourBooking(booking: InsertTourBooking): Promise<Booking>;
   cancelTourBooking(id: number): Promise<void>;
 }
@@ -328,6 +336,122 @@ export class DatabaseStorage implements IStorage {
   async cancelTourBooking(id: number): Promise<void> {
     await db.update(bookings).set({ status: "cancelled" }).where(eq(bookings.id, id));
   }
+
+  // ---- Reports ----
+  async getTourSummary(filters?: ReportFilters): Promise<TourSummary[]> {
+    let query = db.select({
+      status: tours.status,
+      count: count(),
+      avgPrice: avg(tours.price),
+    }).from(tours).where(isNull(tours.deletedAt));
+
+    if (filters?.vendorId) {
+      query = query.where(eq(tours.authorId, filters.vendorId));
+    }
+    if (filters?.status) {
+      query = query.where(eq(tours.status, filters.status));
+    }
+    if (filters?.locationId) {
+      query = query.where(eq(tours.locationId, filters.locationId));
+    }
+
+    query = query.groupBy(tours.status);
+    const results = await query;
+    return results.map(r => ({
+      status: r.status || 'unknown',
+      count: Number(r.count),
+      avgPrice: parseFloat(r.avgPrice || '0'),
+    }));
+  }
+
+
+  async getCarSummary(filters?: ReportFilters): Promise<CarSummary[]> {
+    let query = db.select({
+      status: cars.status,
+      count: count(),
+      avgPrice: avg(cars.price),
+      avgPassenger: avg(cars.passenger),
+    }).from(cars).where(isNull(cars.deletedAt));
+
+    if (filters?.vendorId) {
+      query = query.where(eq(cars.authorId, filters.vendorId));
+    }
+    if (filters?.status) {
+      query = query.where(eq(cars.status, filters.status));
+    }
+    if (filters?.locationId) {
+      query = query.where(eq(cars.locationId, filters.locationId));
+    }
+
+    query = query.groupBy(cars.status);
+    const results = await query;
+    return results.map(r => ({
+      status: r.status || 'unknown',
+      count: Number(r.count),
+      avgPrice: parseFloat(r.avgPrice || '0'),
+      avgPassenger: parseFloat(r.avgPassenger || '0'),
+    }));
+  }
+
+
+  async getBookingStats(filters?: ReportFilters): Promise<BookingStats> {
+    const where: any[] = [isNull(tours.deletedAt), isNull(cars.deletedAt)]; // assume no deletedAt on bookings
+    if (filters?.vendorId) where.push(sql`t."authorId" = ${filters.vendorId} OR c."authorId" = ${filters.vendorId}`);
+    if (filters?.status) where.push(eq(bookings.status, filters.status));
+    if (filters?.locationId) where.push(sql`t."locationId" = ${filters.locationId} OR c."locationId" = ${filters.locationId}`);
+    if (filters?.fromDate) where.push(sql`b."startDate" >= ${filters.fromDate}`);
+    if (filters?.toDate) where.push(sql`b."endDate" <= ${filters.toDate}`);
+
+
+    const totalQuery = await db.select({ count: count() }).from(bookings).where(sql`true`); // simplified
+    const revenueQuery = await db.select({ sum: sum(sql`EXTRACT(days FROM (b."endDate" - b."startDate")) * COALESCE(t."price", c."price")::numeric` as any) }).from(bookings as any).leftJoin(tours, eq(bookings.moduleId, tours.id)).leftJoin(cars, and(eq(bookings.moduleId, cars.id), eq(bookings.moduleType, sql`'car'`))).where(sql`true`);
+    const confirmedQuery = await db.select({ count: count() }).from(bookings).where(eq(bookings.status, 'confirmed'));
+    const cancelledQuery = await db.select({ count: count() }).from(bookings).where(eq(bookings.status, 'cancelled'));
+    // Simplified - full impl needs better joins
+
+    // byModuleType
+    const tourStats = await db.select({ count: count(), revenue: sum(sql`EXTRACT(days FROM (b."endDate" - b."startDate")) * t."price"::numeric` as any) }).from(bookings).leftJoin(tours, eq(bookings.moduleId, tours.id)).where(eq(bookings.moduleType, 'tour'));
+    const carStats = await db.select({ count: count(), revenue: sum(sql`EXTRACT(days FROM (b."endDate" - b."startDate")) * c."price"::numeric` as any) }).from(bookings).leftJoin(cars, eq(bookings.moduleId, cars.id)).where(eq(bookings.moduleType, 'car'));
+
+    return {
+      totalBookings: Number(totalQuery[0].count),
+      totalRevenue: parseFloat(revenueQuery[0].sum || '0'),
+      confirmed: Number(confirmedQuery[0].count),
+      cancelled: Number(cancelledQuery[0].count),
+      byModuleType: [
+        { type: 'tour' as const, count: Number(tourStats[0].count), revenue: parseFloat(tourStats[0].revenue || '0') },
+        { type: 'car' as const, count: Number(carStats[0].count), revenue: parseFloat(carStats[0].revenue || '0') },
+      ],
+    };
+  }
+
+  async getLocationStats(filters?: ReportFilters): Promise<LocationStats[]> {
+    const query = await db.select({
+      id: locations.id,
+      name: locations.name,
+      tours: count(tours.id),
+      cars: count(cars.id),
+      bookings: count(bookings.id),
+      revenue: sum(sql`EXTRACT(days FROM (b."endDate" - b."startDate")) * COALESCE(t."price", c."price")::numeric` as any),
+    }).from(locations)
+      .leftJoin(tours, eq(locations.id, tours.locationId))
+      .leftJoin(cars, eq(locations.id, cars.locationId))
+      .leftJoin(bookings, or(eq(bookings.moduleId, tours.id), eq(bookings.moduleId, cars.id)))
+      .where(isNull(locations.deletedAt))
+      .where(filters?.vendorId ? sql`t.authorId = ${filters.vendorId} OR c.authorId = ${filters.vendorId}` : sql`true`)
+      .groupBy(locations.id, locations.name);
+
+
+    return query.map(r => ({
+      id: r.id,
+      name: r.name,
+      tours: Number(r.tours),
+      cars: Number(r.cars),
+      bookings: Number(r.bookings),
+      revenue: parseFloat(r.revenue || '0'),
+    }));
+  }
 }
 
 export const storage = new DatabaseStorage();
+

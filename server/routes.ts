@@ -451,7 +451,87 @@ app.post('/api/upload/image', requireAuth, upload.fields([{ name: 'image', maxCo
   });
 
   // ===================== TOUR BOOKINGS =====================
+// ===================== REPORTS =====================
+  app.get(api.reports.tours.path, requireAuth, async (req, res) => {
+    try {
+      const user = (req as any).user;
+      const parsedFilters = api.reports.tours.input.parse(req.query);
+      const filters = parsedFilters;
+      if (user.roleCode === 'vendor') {
+        filters.vendorId = user.id;
+      }
+      const summary = await storage.getTourSummary(filters);
+      res.json(summary);
+    } catch (e) {
+      if (e instanceof z.ZodError) {
+        return res.status(400).json({ message: e.errors[0].message });
+      }
+      console.error(e);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+
+  app.get(api.reports.cars.path, requireAuth, async (req, res) => {
+    try {
+      const user = (req as any).user;
+      const parsedFilters = api.reports.cars.input.parse(req.query);
+      const filters = parsedFilters;
+      if (user.roleCode === 'vendor') {
+        filters.vendorId = user.id;
+      }
+      const summary = await storage.getCarSummary(filters);
+      res.json(summary);
+    } catch (e) {
+      if (e instanceof z.ZodError) {
+        return res.status(400).json({ message: e.errors[0].message });
+      }
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+
+  app.get(api.reports.bookings.path, requireAuth, async (req, res) => {
+    try {
+      const user = (req as any).user;
+      const parsedFilters = api.reports.bookings.input.parse(req.query);
+      const filters = parsedFilters;
+      if (user.roleCode === 'vendor') {
+        filters.vendorId = user.id;
+      }
+      const stats = await storage.getBookingStats(filters);
+      res.json(stats);
+    } catch (e) {
+      if (e instanceof z.ZodError) {
+        return res.status(400).json({ message: e.errors[0].message });
+      }
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+
+  app.get(api.reports.locations.path, requireAuth, async (req, res) => {
+    try {
+      const user = (req as any).user;
+      const parsedFilters = api.reports.locations.input.parse(req.query);
+      const filters = parsedFilters;
+      if (user.roleCode === 'vendor') {
+        filters.vendorId = user.id;
+      }
+      const stats = await storage.getLocationStats(filters);
+      res.json(stats);
+    } catch (e) {
+      if (e instanceof z.ZodError) {
+        return res.status(400).json({ message: e.errors[0].message });
+      }
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+
+  // ===================== TOUR BOOKINGS =====================
   app.get(api.tourBookings!.list.path, requireAuth, async (req, res) => {
+
     const userId = req.query.userId ? Number(req.query.userId) : undefined;
     if (userId && userId !== (req as any).user.id) {
       return res.status(403).json({ message: "Unauthorized to view other user's bookings" });
