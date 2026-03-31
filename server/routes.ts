@@ -7,12 +7,11 @@ import { api } from "@shared/routes";
 import { registerSchema, loginSchema, updateProfileSchema, reportFiltersSchema, cars as carsTable, tours as toursTable, ratings as ratingsTable, notifications, getNotificationsInputSchema, createNotificationInputSchema } from "@shared/schema";
 
 import { signToken, requireAuth, requireAdmin } from "./auth";
-import WebSocket from "ws";
-import jwt from "jsonwebtoken";
 import { eq } from "drizzle-orm";
 
 
 import { db } from "./db";
+
 import { locations, attributes, tours, cars, roles, tourAttributes, carAttributes, bookings } from "@shared/schema";
 import { type TourBooking } from "@shared/schema";
 import { v2 as cloudinary } from 'cloudinary';
@@ -680,6 +679,61 @@ app.get('/api/reports/cars', requireAuth, async (req, res) => {
     }
   });
 
+  // Setup WebSocket Server for Notifications
+  const wss = new WebSocket.Server({ server: httpServer, path: '/ws/notifications' });
+
+  const clientRooms = new Map<number, WebSocket[]>();
+  const roomClients = new Map<number, WebSocket[]>();
+
+  wss.on('connection', (ws: WebSocket, req) => {
+    const url = new URL(req.url!, `http://${req.headers.host}`);
+    const token = url.searchParams.get('token');
+    
+    if (!token) {
+      ws.close(1008, 'Token required');
+      return;
+    }
+
+    try {
+      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback-secret') as any;
+      const userId = decoded.userId;
+
+      // Join user room
+      if (!clientRooms.has(userId)) clientRooms.set(userId, []);
+      if (!roomClients.has(userId)) roomClients.set(userId, []);
+      
+      clientRooms.get(userId)!.push(ws);
+      roomClients.get(userId)!.push(ws);
+
+      ws.userId = userId;
+
+      ws.on('close', () => {
+        const clients = clientRooms.get(userId) || [];
+        const index = clients.indexOf(ws);
+        if (index > -1) clients.splice(index, 1);
+        if (clients.length === 0) {
+          clientRooms.delete(userId);
+          roomClients.delete(userId);
+        }
+      });
+
+      console.log(`WS connected: user ${userId}`);
+    } catch (e) {
+      ws.close(1008, 'Invalid token');
+    }
+  });
+
+  // Global emit function for sending notifications to user room
+  (global as any).emitNotification = (userId: number, notification: any) => {
+    const clients = roomClients.get(userId) || [];
+    clients.forEach(client => {
+      if (client.readyState === WebSocket.OPEN) {
+        client.send(JSON.stringify(notification));
+      }
+    });
+    console.log(`Emitted notification to user ${userId}:`, notification.title);
+  };
+
   // ===================== SEED =====================
   setTimeout(async () => {
     try {
@@ -722,3 +776,4 @@ app.get('/api/reports/cars', requireAuth, async (req, res) => {
 
   return httpServer;
 }
+

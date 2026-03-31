@@ -525,5 +525,3 @@ async getLocationStats(filters?: any): Promise<LocationStats[]> {
 export const storage = new DatabaseStorage();
 
 
-export const storage = new DatabaseStorage();
-
