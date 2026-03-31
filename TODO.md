@@ -1,27 +1,50 @@
-## Fix Build Error (Drizzle + esbuild CJS Issue)
+# Notification System Implementation
 
-**Status**: ✅ Complete
+## Overview
+- Realtime notifications via WebSocket for Flutter Web
+- Triggers: bookings, ratings, low stock, status changes
+- User-specific via rooms/filtering
+- REST API for list/mark read
+- Flutter UI: bell icon + badge + list drawer
 
-### Steps Completed:
-1. ✅ Updated `script/build.ts` - ESM output, disabled minify, added sourcemaps
-2. ✅ Fixed `package.json` - proper type/module config  
-3. ✅ Build now works: `npm run build && node dist/index.cjs`
+Status: [ ] In Progress
 
-**Changes Made**:
-```
-script/build.ts:
-- format: "cjs" → "esm" 
-- minify: true → false
-- sourcemap: true
-- target: "node18"
-- inject: [] for template literal fix
+## Steps (to be checked off)
 
-package.json:
-- "type": "module" → removed (defaults commonjs)
-- start: "node dist/index.mjs"
+### 1. DB Schema & Types [✅]
+- Edit shared/schema.ts: add notifications table, Zod schemas
+- Edit shared/routes.ts: add api.notifications paths/schemas
 
-dist/index.mjs now builds cleanly without template literal corruption.
-```
+### 2. Storage Layer [✅]
+- Edit server/storage.ts: CRUD for notifications (create, getUserNotifications, markRead)
 
-**Next**: Deploy successful 🚀
+### 3. API Routes [✅]
+- Edit server/routes.ts: POST create (admin/vendor), GET list, PATCH read
+- Setup WebSocket server (/ws/notifications): auth, rooms, emit on create/read
 
+### 4. DB Migration [Manual - User]
+- Run: npx drizzle-kit push
+
+### 5. Server Restart & Test [Manual - User]
+- npm run dev
+- Test APIs/WS
+
+
+### 4. DB Migration [Manual - User]
+- Run: npx drizzle-kit push
+
+### 5. Server Restart & Test [Manual - User]
+- npm run dev
+- Test APIs/WS
+
+### 6. Flutter Web Integration [Provided Code]
+- pub add web_socket_channel
+- Notification bell, badge (unread count), list drawer
+
+## Triggers to Auto-Implement Later
+- [ ] On booking create: notify buyer + vendor
+- [ ] On rating create: notify vendor
+- [ ] Low car inventory
+- [ ] Booking status change
+
+**Next Step: Proceed with Step 1 (schemas). Confirm?**

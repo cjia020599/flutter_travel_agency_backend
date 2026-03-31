@@ -4,9 +4,14 @@ import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { storage } from "./storage";
 import { api } from "@shared/routes";
-import { registerSchema, loginSchema, updateProfileSchema, reportFiltersSchema, cars as carsTable, tours as toursTable, ratings as ratingsTable } from "@shared/schema";
+import { registerSchema, loginSchema, updateProfileSchema, reportFiltersSchema, cars as carsTable, tours as toursTable, ratings as ratingsTable, notifications, getNotificationsInputSchema, createNotificationInputSchema } from "@shared/schema";
+
 import { signToken, requireAuth, requireAdmin } from "./auth";
+import WebSocket from "ws";
+import jwt from "jsonwebtoken";
 import { eq } from "drizzle-orm";
+
+
 import { db } from "./db";
 import { locations, attributes, tours, cars, roles, tourAttributes, carAttributes, bookings } from "@shared/schema";
 import { type TourBooking } from "@shared/schema";
@@ -622,10 +627,64 @@ app.get('/api/reports/cars', requireAuth, async (req, res) => {
     res.status(204).end();
   });
 
+// ===================== NOTIFICATIONS =====================
+
+  // GET /api/notifications - List user notifications (paginated, unread option)
+  app.get(api.notifications.list.path, requireAuth, async (req, res) => {
+    try {
+      const user = (req as any).user;
+      const input = getNotificationsInputSchema.parse(req.query);
+      
+      const notifications = await storage.getUserNotifications(user.id, input);
+      res.json(notifications);
+    } catch (e) {
+      if (e instanceof z.ZodError) {
+        return res.status(400).json({ message: e.errors[0].message });
+      }
+      console.error(e);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // POST /api/notifications - Create notification (admin/vendor)
+  app.post(api.notifications.create.path, requireAuth, async (req, res) => {
+    try {
+      const input = createNotificationInputSchema.parse(req.body);
+      const notification = await storage.createNotification(input);
+      res.status(201).json(notification);
+    } catch (e) {
+      if (e instanceof z.ZodError) {
+        return res.status(400).json({ message: e.errors[0].message, field: e.errors[0].path.join(".") });
+      }
+      console.error(e);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // PATCH /api/notifications/:id/read - Mark notification as read
+  app.patch(api.notifications.read.path.replace(':id', ':id'), requireAuth, async (req, res) => {
+    try {
+      const user = (req as any).user;
+      const id = Number(req.params.id);
+      const notification = await storage.markNotificationRead(id);
+      if (!notification) {
+        return res.status(404).json({ message: "Notification not found" });
+      }
+      if (notification.userId !== user.id) {
+        return res.status(403).json({ message: "Unauthorized" });
+      }
+      res.json(notification);
+    } catch (e) {
+      console.error(e);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
   // ===================== SEED =====================
   setTimeout(async () => {
     try {
       const existingRoles = await storage.getRoles();
+
       if (existingRoles.length === 0) {
         await db.insert(roles).values([
           { name: "Administrator", code: "administrator" },

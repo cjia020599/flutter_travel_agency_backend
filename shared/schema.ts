@@ -309,8 +309,34 @@ export type InsertRating = z.infer<typeof insertRatingSchema>;
 export type CreateRatingInput = z.infer<typeof createRatingInputSchema>;
 export type UpdateRatingInput = z.infer<typeof updateRatingInputSchema>;
 
+export const notifications = pgTable("notifications", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  message: text("message").notNull(),
+  type: text("type").notNull(), // booking, rating, low_stock, status_change, promotion
+  data: jsonb("data").default({}),
+  readAt: timestamp("read_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export type Notification = typeof notifications.$inferSelect;
+
+export const insertNotificationSchema = createInsertSchema(notifications).omit({ id: true, readAt: true, createdAt: true });
+
+export const createNotificationInputSchema = insertNotificationSchema.pick({ userId: true, title: true, message: true, type: true, data: true });
+
+export const markReadInputSchema = z.object({});
+
+export const getNotificationsInputSchema = z.object({
+  page: z.coerce.number().min(1).default(1),
+  limit: z.coerce.number().min(1).max(100).default(20),
+  unreadOnly: z.coerce.boolean().default(false),
+});
+
 // ==================== AUTH SCHEMAS ====================
 export const registerSchema = z.object({
+
   firstName: z.string().min(1, "First name is required"),
   lastName: z.string().min(1, "Last name is required"),
   username: z.string().min(3, "Username must be at least 3 characters"),

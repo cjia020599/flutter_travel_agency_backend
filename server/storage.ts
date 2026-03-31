@@ -1,6 +1,6 @@
 import { db } from "./db";
 import {
-  locations, tours, cars, tourAttributes, carAttributes, attributes, bookings,
+  locations, tours, cars, tourAttributes, carAttributes, attributes, bookings, notifications,
   users, roles, vendorProfiles,
   type Tour, type InsertTour,
   type Car, type InsertCar,
@@ -11,11 +11,22 @@ import {
   type Role,
   type VendorProfile, type InsertVendorProfile,
   type AuthUser, type UpdateProfileInput,
+  type Notification,
+
 } from "@shared/schema";
-import { eq, and, isNull, count, sum, avg, sql, groupBy } from "drizzle-orm";
+import { eq, and, isNull, count, sum, avg, sql, groupBy, desc } from "drizzle-orm";
+</xai:function_call >
+
+<xai:function_call name="edit_file">
+<parameter name="path">server/storage.ts
 
 
 export interface IStorage {
+  // Notifications
+  getUserNotifications(userId: number, opts: { page: number; limit: number; unreadOnly: boolean }): Promise<Notification[]>;
+  createNotification(data: { userId: number; title: string; message: string; type: string; data?: any }): Promise<Notification>;
+  markNotificationRead(id: number): Promise<Notification | undefined>;
+
   // Tours
   getTours(): Promise<Tour[]>;
   getTour(id: number): Promise<Tour | undefined>;
@@ -65,6 +76,7 @@ export interface IStorage {
   
   // Tour Bookings
   getTourBookings(filters?: { userId?: number }): Promise<TourBooking[]>;
+
 
   createTourBooking(booking: InsertTourBooking): Promise<Booking>;
   cancelTourBooking(id: number): Promise<void>;
@@ -473,7 +485,45 @@ async getLocationStats(filters?: any): Promise<LocationStats[]> {
       return [];
     }
   }
+
+  // ---- Notifications ----
+  async getUserNotifications(userId: number, opts: { page: number; limit: number; unreadOnly: boolean }): Promise<Notification[]> {
+    const offset = (opts.page - 1) * opts.limit;
+    let query = db
+      .select()
+      .from(notifications)
+      .where(eq(notifications.userId, userId))
+      .orderBy(desc(notifications.createdAt))
+      .limit(opts.limit)
+      .offset(offset);
+    
+    if (opts.unreadOnly) {
+      query = query.where(isNull(notifications.readAt));
+    }
+    
+    return await query;
+  }
+
+  async createNotification(data: { userId: number; title: string; message: string; type: string; data?: any }): Promise<Notification> {
+    const [notification] = await db.insert(notifications).values({
+      ...data,
+      readAt: null,
+    }).returning();
+    return notification!;
+  }
+
+  async markNotificationRead(id: number): Promise<Notification | undefined> {
+    const [notification] = await db
+      .update(notifications)
+      .set({ readAt: new Date() })
+      .where(eq(notifications.id, id))
+      .returning();
+    return notification;
+  }
 }
+
+export const storage = new DatabaseStorage();
+
 
 export const storage = new DatabaseStorage();
 

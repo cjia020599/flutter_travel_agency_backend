@@ -271,10 +271,30 @@ export const api = {
       responses: { 204: z.void(), 404: errorSchemas.notFound },
     },
   },
+  notifications: {
+    list: {
+      method: "GET" as const,
+      path: "/api/notifications" as const,
+      input: getNotificationsInputSchema.optional(),
+      responses: { 200: z.array(z.custom<Notification>()) },
+    },
+    create: {
+      method: "POST" as const,
+      path: "/api/notifications" as const,
+      input: createNotificationInputSchema,
+      responses: { 201: z.custom<Notification>() },
+    },
+    read: {
+      method: "PATCH" as const,
+      path: "/api/notifications/:id/read" as const,
+      responses: { 200: z.custom<Notification>() },
+    },
+  },
   ratings: {
     list: {
       method: "GET" as const,
       path: "/api/ratings" as const,
+
       input: z.object({
         moduleType: z.enum(["car", "tour"]).optional(),
         moduleId: z.coerce.number().optional(),
