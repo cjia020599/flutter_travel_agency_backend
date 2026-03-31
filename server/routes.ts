@@ -1,4 +1,7 @@
 import type { Express } from "express";
+import WebSocket from 'ws';
+import jwt from 'jsonwebtoken';
+import { tourAttributes, carAttributes, roles, locations, attributes, tours, cars, bookings, notifications, eq } from "@shared/schema";
 import type { Server } from "http";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
@@ -697,7 +700,12 @@ app.get('/api/reports/cars', requireAuth, async (req, res) => {
     }
 
     try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback-secret') as any;
+    const secret = process.env.JWT_SECRET;
+    if (!secret) {
+      ws.close(1008, 'Server configuration error');
+      return;
+    }
+    const decoded = jwt.verify(token, secret) as any;
       const userId = decoded.userId;
 
       // Join user room
