@@ -44,7 +44,7 @@ async function buildAll() {
     ...Object.keys(pkg.dependencies || {}),
     ...Object.keys(pkg.devDependencies || {}),
   ];
-const externals = ["drizzle-orm", "pg", "zod"];
+const externals = ["drizzle-orm", "pg", "zod", "ws"];
 
   await esbuild({
     entryPoints: ["server/index.ts"],
