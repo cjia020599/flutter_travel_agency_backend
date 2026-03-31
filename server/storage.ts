@@ -394,7 +394,7 @@ export class DatabaseStorage implements IStorage {
   }
 
 
-  async getBookingStats(filters?: ReportFilters): Promise<BookingStats> {
+async getBookingStats(filters?: any): Promise<BookingStats> {
     const where: any[] = [isNull(tours.deletedAt), isNull(cars.deletedAt)]; // assume no deletedAt on bookings
     if (filters?.vendorId) where.push(sql`t."authorId" = ${filters.vendorId} OR c."authorId" = ${filters.vendorId}`);
     if (filters?.status) where.push(eq(bookings.status, filters.status));
@@ -425,7 +425,7 @@ export class DatabaseStorage implements IStorage {
     };
   }
 
-  async getLocationStats(filters?: ReportFilters): Promise<LocationStats[]> {
+async getLocationStats(filters?: any): Promise<LocationStats[]> {
     const query = await db.select({
       id: locations.id,
       name: locations.name,
