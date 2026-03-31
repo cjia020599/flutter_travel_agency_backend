@@ -15,8 +15,6 @@ import {
 
 } from "@shared/schema";
 import { eq, and, isNull, count, sum, avg, sql, groupBy, desc } from "drizzle-orm";
-<xai:function_call >
-
 <xai:function_call name="edit_file">
 <parameter name="path">server/storage.ts
 
