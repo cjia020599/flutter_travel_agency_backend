@@ -4,7 +4,8 @@ import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { storage } from "./storage";
 import { api } from "@shared/routes";
-import { registerSchema, loginSchema, updateProfileSchema, reportFiltersSchema, cars as carsTable, tours as toursTable, ratings as ratingsTable, notifications, getNotificationsInputSchema, createNotificationInputSchema } from "@shared/schema";
+import { registerSchema, loginSchema, updateProfileSchema, reportFiltersSchema, getNotificationsInputSchema, createNotificationInputSchema, notifications } from "@shared/schema";
+
 
 import { signToken, requireAuth, requireAdmin } from "./auth";
 import { eq } from "drizzle-orm";
@@ -12,7 +13,8 @@ import { eq } from "drizzle-orm";
 
 import { db } from "./db";
 
-import { locations, attributes, tours, cars, roles, tourAttributes, carAttributes, bookings } from "@shared/schema";
+// Removed duplicate schema imports
+
 import { type TourBooking } from "@shared/schema";
 import { v2 as cloudinary } from 'cloudinary';
 import multer from 'multer';
