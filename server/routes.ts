@@ -4,7 +4,7 @@ import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { storage } from "./storage";
 import { api } from "@shared/routes";
-import { registerSchema, loginSchema, updateProfileSchema, cars as carsTable, tours as toursTable, ratings as ratingsTable } from "@shared/schema";
+import { registerSchema, loginSchema, updateProfileSchema, cars as carsTable, tours as toursTable, ratings as ratingsTable, reportFiltersSchema } from "@shared/schema";
 import { signToken, requireAuth, requireAdmin } from "./auth";
 import { eq } from "drizzle-orm";
 import { db } from "./db";
