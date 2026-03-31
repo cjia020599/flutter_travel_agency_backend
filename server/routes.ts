@@ -4,7 +4,7 @@ import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { storage } from "./storage";
 import { api } from "@shared/routes";
-import { registerSchema, loginSchema, updateProfileSchema, cars as carsTable, tours as toursTable, ratings as ratingsTable, reportFiltersSchema } from "@shared/schema";
+import { registerSchema, loginSchema, updateProfileSchema, reportFiltersSchema, cars as carsTable, tours as toursTable, ratings as ratingsTable } from "@shared/schema";
 import { signToken, requireAuth, requireAdmin } from "./auth";
 import { eq } from "drizzle-orm";
 import { db } from "./db";
@@ -451,11 +451,11 @@ app.post('/api/upload/image', requireAuth, upload.fields([{ name: 'image', maxCo
   });
 
   // ===================== TOUR BOOKINGS =====================
-// ===================== REPORTS =====================
+  // ===================== REPORTS =====================
 app.get('/api/reports/tours', requireAuth, async (req, res) => {
     try {
       const user = (req as any).user;
-      const parsedFilters = api.reports.tours.input.parse(req.query);
+      const parsedFilters = reportFiltersSchema.parse(req.query);
       const filters = parsedFilters;
       if (user.roleCode === 'vendor') {
         filters.vendorId = user.id;
@@ -475,7 +475,7 @@ app.get('/api/reports/tours', requireAuth, async (req, res) => {
 app.get('/api/reports/cars', requireAuth, async (req, res) => {
     try {
       const user = (req as any).user;
-      const parsedFilters = api.reports.cars.input.parse(req.query);
+      const parsedFilters = reportFiltersSchema.parse(req.query);
       const filters = parsedFilters;
       if (user.roleCode === 'vendor') {
         filters.vendorId = user.id;
@@ -491,10 +491,10 @@ app.get('/api/reports/cars', requireAuth, async (req, res) => {
   });
 
 
-  app.get(api.reports.bookings.path, requireAuth, async (req, res) => {
+  app.get('/api/reports/bookings', requireAuth, async (req, res) => {
     try {
       const user = (req as any).user;
-      const parsedFilters = api.reports.bookings.input.parse(req.query);
+      const parsedFilters = reportFiltersSchema.parse(req.query);
       const filters = parsedFilters;
       if (user.roleCode === 'vendor') {
         filters.vendorId = user.id;
@@ -510,10 +510,10 @@ app.get('/api/reports/cars', requireAuth, async (req, res) => {
   });
 
 
-  app.get(api.reports.locations.path, requireAuth, async (req, res) => {
+  app.get('/api/reports/locations', requireAuth, async (req, res) => {
     try {
       const user = (req as any).user;
-      const parsedFilters = api.reports.locations.input.parse(req.query);
+      const parsedFilters = reportFiltersSchema.parse(req.query);
       const filters = parsedFilters;
       if (user.roleCode === 'vendor') {
         filters.vendorId = user.id;
