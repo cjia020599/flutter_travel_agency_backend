@@ -5,7 +5,7 @@ import { registerSchema, loginSchema, updateProfileSchema, reportFiltersSchema, 
 // ==================== UTILITY ====================
 export function buildUrl(template: string, params: Record<string, string | number>): string {
   let url = template;
-  for (const [key, value] from Object.entries(params)) {
+    for (const [key, value] of Object.entries(params)) {
     url = url.replace(`:${key}`, String(value));
   }
   return url;
