@@ -452,7 +452,7 @@ app.post('/api/upload/image', requireAuth, upload.fields([{ name: 'image', maxCo
 
   // ===================== TOUR BOOKINGS =====================
 // ===================== REPORTS =====================
-  app.get(api.reports.tours.path, requireAuth, async (req, res) => {
+app.get('/api/reports/tours', requireAuth, async (req, res) => {
     try {
       const user = (req as any).user;
       const parsedFilters = api.reports.tours.input.parse(req.query);
@@ -472,7 +472,7 @@ app.post('/api/upload/image', requireAuth, upload.fields([{ name: 'image', maxCo
   });
 
 
-  app.get(api.reports.cars.path, requireAuth, async (req, res) => {
+app.get('/api/reports/cars', requireAuth, async (req, res) => {
     try {
       const user = (req as any).user;
       const parsedFilters = api.reports.cars.input.parse(req.query);
