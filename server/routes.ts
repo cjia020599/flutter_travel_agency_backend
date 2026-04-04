@@ -21,7 +21,7 @@ import {
 
 
 import { signToken, requireAuth, requireAdmin } from "./auth";
-import { eq } from "drizzle-orm";
+import { eq, and, isNull, desc } from "drizzle-orm";
 
 
 import { db } from "./db";
@@ -121,6 +121,7 @@ function similarityScore(query: string, candidate: string, keywords: string[]): 
 type BuiltinChatbotMatch = {
   answer: string;
   intent: "near_me" | "best_deal" | "most_popular";
+  suggestions: SuggestionItem[];
 };
 
 function detectBuiltinChatbotResponse(question: string): BuiltinChatbotMatch | null {
@@ -130,6 +131,7 @@ function detectBuiltinChatbotResponse(question: string): BuiltinChatbotMatch | n
   const matchAny = (patterns: RegExp[]) => patterns.some((p) => p.test(q));
 
   const nearMePatterns = [
+    /\bnear\b/,
     /\bnear me\b/,
     /\bnearby\b/,
     /\bclosest\b/,
@@ -146,13 +148,7 @@ function detectBuiltinChatbotResponse(question: string): BuiltinChatbotMatch | n
     /\bnear here\b/,
     /\bwithin walking distance\b/,
   ];
-  if (matchAny(nearMePatterns)) {
-    return {
-      intent: "near_me",
-      answer:
-        "I can help find options near you. Share your city or enable location in the app, and I will suggest nearby tours and cars.",
-    };
-  }
+  const hasNearMe = matchAny(nearMePatterns);
 
   const bestDealPatterns = [
     /\bbest deal\b/,
@@ -161,6 +157,9 @@ function detectBuiltinChatbotResponse(question: string): BuiltinChatbotMatch | n
     /\blowest price\b/,
     /\blowest cost\b/,
     /\bcheapest\b/,
+    /\bcheap\b/,
+    /\bcheaper\b/,
+    /\bbudget\b/,
     /\bmost affordable\b/,
     /\baffordable\b/,
     /\bbest value\b/,
@@ -178,13 +177,7 @@ function detectBuiltinChatbotResponse(question: string): BuiltinChatbotMatch | n
     /\bbargain\b/,
     /\bvalue for money\b/,
   ];
-  if (matchAny(bestDealPatterns)) {
-    return {
-      intent: "best_deal",
-      answer:
-        "Looking for the best deal? Tell me your budget and dates, and I will highlight the lowest-priced or discounted options.",
-    };
-  }
+  const hasBestDeal = matchAny(bestDealPatterns);
 
   const mostPopularPatterns = [
     /\bmost popular\b/,
@@ -202,16 +195,146 @@ function detectBuiltinChatbotResponse(question: string): BuiltinChatbotMatch | n
     /\bhot\b/,
     /\bviral\b/,
     /\brecommended\b/,
+    /\bfamous\b/,
   ];
-  if (matchAny(mostPopularPatterns)) {
-    return {
-      intent: "most_popular",
-      answer:
-        "Want the most popular picks? Share your destination and dates, and I will show the top booked or highest rated options.",
-    };
+  const hasMostPopular = matchAny(mostPopularPatterns);
+
+  const intent = hasBestDeal ? "best_deal" : hasNearMe ? "near_me" : hasMostPopular ? "most_popular" : null;
+  if (!intent) return null;
+
+  return {
+    intent,
+    answer: "",
+    suggestions: [],
+  };
+}
+
+type SuggestionItem = {
+  id: number;
+  title: string;
+  price: string | null;
+  salePrice: string | null;
+  imageUrl: string | null;
+  kind: "tour" | "car";
+  featured: boolean | null;
+};
+
+function wantsMoreSuggestions(question: string): boolean {
+  const q = normalizeText(question);
+  if (!q) return false;
+  return (
+    q.includes("more") ||
+    q.includes("another") ||
+    q.includes("else") ||
+    q.includes("others") ||
+    q.includes("more than") ||
+    q.includes("show more") ||
+    q.includes("more options") ||
+    q.includes("more items")
+  );
+}
+
+function clampSuggestionCount(count: number): number {
+  if (Number.isNaN(count)) return 3;
+  return Math.max(1, Math.min(10, count));
+}
+
+function priceNumber(value: string | null): number {
+  if (!value) return Number.POSITIVE_INFINITY;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : Number.POSITIVE_INFINITY;
+}
+
+function effectivePrice(item: SuggestionItem): number {
+  return priceNumber(item.salePrice ?? item.price);
+}
+
+function pickSentenceVariant(key: string, count: number): number {
+  const base = key.length + count;
+  return base % 3;
+}
+
+function formatSuggestionList(suggestions: SuggestionItem[]): string {
+  if (suggestions.length === 0) return "";
+  const lines = suggestions.map((item, index) => {
+    const priceValue = item.salePrice ?? item.price;
+    const priceLabel = priceValue ? ` - $${priceValue}` : "";
+    return `${index + 1}. ${item.title} (${item.kind})${priceLabel}`;
+  });
+  return lines.join("\n");
+}
+
+async function fetchSuggestions(intent: BuiltinChatbotMatch["intent"], count: number): Promise<SuggestionItem[]> {
+  const limitPerType = Math.max(3, count);
+  const tourRows = await db
+    .select({
+      id: tours.id,
+      title: tours.title,
+      price: tours.price,
+      salePrice: tours.salePrice,
+      imageUrl: tours.imageUrl,
+      isFeatured: tours.isFeatured,
+    })
+    .from(tours)
+    .where(and(eq(tours.status, "publish"), isNull(tours.deletedAt)))
+    .orderBy(desc(tours.isFeatured), desc(tours.id))
+    .limit(limitPerType);
+
+  const carRows = await db
+    .select({
+      id: cars.id,
+      title: cars.title,
+      price: cars.price,
+      salePrice: cars.salePrice,
+      imageUrl: cars.imageUrl,
+      isFeatured: cars.isFeatured,
+    })
+    .from(cars)
+    .where(and(eq(cars.status, "publish"), isNull(cars.deletedAt)))
+    .orderBy(desc(cars.isFeatured), desc(cars.id))
+    .limit(limitPerType);
+
+  const toursList: SuggestionItem[] = tourRows.map((r) => ({
+    id: r.id,
+    title: r.title,
+    price: r.price ?? null,
+    salePrice: r.salePrice ?? null,
+    imageUrl: r.imageUrl ?? null,
+    kind: "tour",
+    featured: r.isFeatured ?? null,
+  }));
+
+  const carsList: SuggestionItem[] = carRows.map((r) => ({
+    id: r.id,
+    title: r.title,
+    price: r.price ?? null,
+    salePrice: r.salePrice ?? null,
+    imageUrl: r.imageUrl ?? null,
+    kind: "car",
+    featured: r.isFeatured ?? null,
+  }));
+
+  let combined = [...toursList, ...carsList];
+
+  if (intent === "best_deal") {
+    combined = combined.sort((a, b) => effectivePrice(a) - effectivePrice(b));
+  } else if (intent === "most_popular") {
+    combined = combined.sort((a, b) => {
+      const aFeat = a.featured ? 1 : 0;
+      const bFeat = b.featured ? 1 : 0;
+      if (aFeat !== bFeat) return bFeat - aFeat;
+      return effectivePrice(a) - effectivePrice(b);
+    });
+  } else {
+    combined = combined.sort((a, b) => {
+      const aFeat = a.featured ? 1 : 0;
+      const bFeat = b.featured ? 1 : 0;
+      if (aFeat !== bFeat) return bFeat - aFeat;
+      return effectivePrice(a) - effectivePrice(b);
+    });
   }
 
-  return null;
+  return combined.slice(0, count);
 }
 
 export async function registerRoutes(
@@ -958,9 +1081,48 @@ app.get('/api/reports/cars', requireAuth, async (req, res) => {
       const input = chatbotAskInputSchema.parse(req.body);
       const builtin = detectBuiltinChatbotResponse(input.question);
       if (builtin) {
+        const defaultCount = wantsMoreSuggestions(input.question) ? 5 : 3;
+        const count = clampSuggestionCount(input.topK ?? defaultCount);
+        const suggestions = await fetchSuggestions(builtin.intent, count);
+        const listText = formatSuggestionList(suggestions);
+        const variant = pickSentenceVariant(input.question, count);
+
+        let intro = "";
+        let outro = "";
+        if (builtin.intent === "near_me") {
+          const intros = [
+            "Here are some nearby-style picks to get you started:",
+            "I can help with nearby options. Here are a few ideas:",
+            "Nearby suggestions coming up:",
+          ];
+          intro = intros[variant];
+          outro = "Share your city or enable location for even closer matches.";
+        } else if (builtin.intent === "best_deal") {
+          const intros = [
+            "Here are budget-friendly options:",
+            "Best deal ideas to start with:",
+            "Lowest-priced picks right now:",
+          ];
+          intro = intros[variant];
+          outro = "Tell me your budget and dates if you want tighter matches.";
+        } else {
+          const intros = [
+            "Popular picks right now:",
+            "Top choices people like:",
+            "Here are the most popular-style options:",
+          ];
+          intro = intros[variant];
+          outro = "Share your destination and dates if you want more tailored picks.";
+        }
+
+        const answerParts = [intro];
+        if (listText) answerParts.push(listText);
+        if (outro) answerParts.push(outro);
+
         return res.json({
-          answer: builtin.answer,
+          answer: answerParts.filter(Boolean).join("\n"),
           matched: { intent: builtin.intent },
+          suggestions,
           top: [],
         });
       }
