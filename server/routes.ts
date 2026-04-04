@@ -7,7 +7,17 @@ import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { storage } from "./storage";
 import { api } from "@shared/routes";
-import { registerSchema, loginSchema, updateProfileSchema, reportFiltersSchema, getNotificationsInputSchema, createNotificationInputSchema, notifications } from "@shared/schema";
+import {
+  registerSchema,
+  loginSchema,
+  updateProfileSchema,
+  reportFiltersSchema,
+  getNotificationsInputSchema,
+  createNotificationInputSchema,
+  createChatbotQuestionInputSchema,
+  updateChatbotQuestionInputSchema,
+  chatbotAskInputSchema,
+} from "@shared/schema";
 
 
 import { signToken, requireAuth, requireAdmin } from "./auth";
@@ -50,6 +60,62 @@ async function deleteOldImage(oldImageUrl: string | null) {
       console.error('Failed to delete old image:', error);
     }
   }
+}
+
+function normalizeText(input: string): string {
+  return input
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function tokenize(input: string): string[] {
+  const normalized = normalizeText(input);
+  if (!normalized) return [];
+  return normalized.split(" ").filter(Boolean);
+}
+
+function jaccardScore(aTokens: string[], bTokens: string[]): number {
+  if (aTokens.length === 0 || bTokens.length === 0) return 0;
+  const aSet = new Set(aTokens);
+  const bSet = new Set(bTokens);
+  let intersection = 0;
+  for (const t of aSet) {
+    if (bSet.has(t)) intersection += 1;
+  }
+  const union = new Set([...aSet, ...bSet]).size;
+  return union === 0 ? 0 : intersection / union;
+}
+
+function similarityScore(query: string, candidate: string, keywords: string[]): number {
+  const q = normalizeText(query);
+  const c = normalizeText(candidate);
+  if (!q || !c) return 0;
+  if (q === c) return 1;
+
+  let score = 0;
+  if (q.includes(c) || c.includes(q)) {
+    score = Math.max(score, 0.85);
+  }
+
+  const qTokens = tokenize(q);
+  const cTokens = tokenize(c);
+  score = Math.max(score, jaccardScore(qTokens, cTokens));
+
+  if (keywords.length > 0) {
+    const qSet = new Set(qTokens);
+    let keywordHits = 0;
+    for (const kw of keywords) {
+      const kwNorm = normalizeText(String(kw));
+      if (!kwNorm) continue;
+      if (qSet.has(kwNorm)) keywordHits += 1;
+    }
+    const keywordBoost = Math.min(0.2, keywordHits * 0.05);
+    score = Math.min(1, score + keywordBoost);
+  }
+
+  return score;
 }
 
 export async function registerRoutes(
@@ -738,6 +804,113 @@ app.get('/api/reports/cars', requireAuth, async (req, res) => {
       }
       res.json(notification);
     } catch (e) {
+      console.error(e);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // ===================== CHATBOT =====================
+  app.get(api.chatbot.list.path, async (_req, res) => {
+    const items = await storage.getChatbotQuestions();
+    res.json(items);
+  });
+
+  app.post(api.chatbot.create.path, async (req, res) => {
+    try {
+      const input = createChatbotQuestionInputSchema.parse(req.body);
+      const item = await storage.createChatbotQuestion({
+        question: input.question,
+        answer: input.answer,
+        aliases: input.aliases ?? [],
+        keywords: input.keywords ?? [],
+        active: input.active ?? true,
+      });
+      res.status(201).json(item);
+    } catch (e) {
+      if (e instanceof z.ZodError) {
+        return res.status(400).json({ message: e.errors[0].message, field: e.errors[0].path.join(".") });
+      }
+      console.error(e);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.put(api.chatbot.update.path, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const input = updateChatbotQuestionInputSchema.parse(req.body);
+      const updated = await storage.updateChatbotQuestion(id, input);
+      if (!updated) return res.status(404).json({ message: "Not found" });
+      res.json(updated);
+    } catch (e) {
+      if (e instanceof z.ZodError) {
+        return res.status(400).json({ message: e.errors[0].message, field: e.errors[0].path.join(".") });
+      }
+      console.error(e);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.delete(api.chatbot.delete.path, async (req, res) => {
+    const id = Number(req.params.id);
+    await storage.deleteChatbotQuestion(id);
+    res.status(204).end();
+  });
+
+  app.post(api.chatbot.ask.path, async (req, res) => {
+    try {
+      const input = chatbotAskInputSchema.parse(req.body);
+      const items = await storage.getActiveChatbotQuestions();
+      const minScore = input.minScore ?? 0.35;
+      const topK = input.topK ?? 3;
+
+      const results = items
+        .map((item) => {
+          const aliases = Array.isArray(item.aliases) ? item.aliases : [];
+          const keywords = Array.isArray(item.keywords) ? item.keywords : [];
+          const candidates = [item.question, ...aliases.map(String)];
+          let best = 0;
+          let matched = item.question;
+          for (const c of candidates) {
+            const score = similarityScore(input.question, String(c), keywords as string[]);
+            if (score > best) {
+              best = score;
+              matched = String(c);
+            }
+          }
+          return {
+            id: item.id,
+            question: item.question,
+            answer: item.answer,
+            score: best,
+            matched,
+          };
+        })
+        .sort((a, b) => b.score - a.score);
+
+      const best = results[0];
+      if (!best || best.score < minScore) {
+        return res.json({
+          answer: "Sorry, I don't have an answer for that yet.",
+          matched: null,
+          top: results.slice(0, topK),
+        });
+      }
+
+      return res.json({
+        answer: best.answer,
+        matched: {
+          id: best.id,
+          question: best.question,
+          matched: best.matched,
+          score: best.score,
+        },
+        top: results.slice(0, topK),
+      });
+    } catch (e) {
+      if (e instanceof z.ZodError) {
+        return res.status(400).json({ message: e.errors[0].message, field: e.errors[0].path.join(".") });
+      }
       console.error(e);
       res.status(500).json({ message: "Internal server error" });
     }

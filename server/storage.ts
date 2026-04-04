@@ -1,7 +1,7 @@
 import { db } from "./db";
 import {
   locations, tours, cars, tourAttributes, carAttributes, attributes, bookings, notifications,
-  users, roles, vendorProfiles,
+  users, roles, vendorProfiles, chatbotQuestions,
   type Tour, type InsertTour,
   type Car, type InsertCar,
   type Booking, type InsertTourBooking, type TourBooking, type InsertCarRental, type CarRental,
@@ -12,6 +12,7 @@ import {
   type VendorProfile, type InsertVendorProfile,
   type AuthUser, type UpdateProfileInput,
   type Notification,
+  type ChatbotQuestion, type InsertChatbotQuestion,
   type TourSummary, type CarSummary, type BookingStats, type LocationStats, type ReportFilters
 } from "@shared/schema";
 import { eq, and, isNull, count, sum, avg, sql, desc } from "drizzle-orm";
@@ -20,6 +21,13 @@ export interface IStorage {
   getUserNotifications(userId: number, opts: { page: number; limit: number; unreadOnly: boolean }): Promise<Notification[]>;
   createNotification(data: { userId: number; title: string; message: string; type: string; data?: any }): Promise<Notification>;
   markNotificationRead(id: number): Promise<Notification | undefined>;
+
+  // Chatbot
+  getChatbotQuestions(): Promise<ChatbotQuestion[]>;
+  getActiveChatbotQuestions(): Promise<ChatbotQuestion[]>;
+  createChatbotQuestion(data: InsertChatbotQuestion): Promise<ChatbotQuestion>;
+  updateChatbotQuestion(id: number, updates: Partial<InsertChatbotQuestion>): Promise<ChatbotQuestion>;
+  deleteChatbotQuestion(id: number): Promise<void>;
 
   // Existing methods...
   getTours(): Promise<Tour[]>;
@@ -99,6 +107,32 @@ export class DatabaseStorage implements IStorage {
       .where(eq(notifications.id, id))
       .returning();
     return notification;
+  }
+
+  // ---- Chatbot ----
+  async getChatbotQuestions(): Promise<ChatbotQuestion[]> {
+    return db.select().from(chatbotQuestions).orderBy(desc(chatbotQuestions.createdAt));
+  }
+
+  async getActiveChatbotQuestions(): Promise<ChatbotQuestion[]> {
+    return db.select().from(chatbotQuestions).where(eq(chatbotQuestions.active, true));
+  }
+
+  async createChatbotQuestion(data: InsertChatbotQuestion): Promise<ChatbotQuestion> {
+    const [r] = await db.insert(chatbotQuestions).values(data).returning();
+    return r;
+  }
+
+  async updateChatbotQuestion(id: number, updates: Partial<InsertChatbotQuestion>): Promise<ChatbotQuestion> {
+    const [r] = await db.update(chatbotQuestions).set({
+      ...updates,
+      updatedAt: new Date(),
+    }).where(eq(chatbotQuestions.id, id)).returning();
+    return r;
+  }
+
+  async deleteChatbotQuestion(id: number): Promise<void> {
+    await db.delete(chatbotQuestions).where(eq(chatbotQuestions.id, id));
   }
 
   // ---- Tours ----

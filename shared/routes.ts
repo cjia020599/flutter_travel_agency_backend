@@ -1,6 +1,16 @@
 import { z } from "zod";
-import type { RegisterInput, LoginInput, UpdateProfileInput, Tour, Car, Location, Attribute, AuthUser } from "./schema";
-import { registerSchema, loginSchema, updateProfileSchema, reportFiltersSchema, createNotificationInputSchema, getNotificationsInputSchema } from "./schema";
+import type { RegisterInput, LoginInput, UpdateProfileInput, Tour, Car, Location, Attribute, AuthUser, ChatbotQuestion } from "./schema";
+import {
+  registerSchema,
+  loginSchema,
+  updateProfileSchema,
+  reportFiltersSchema,
+  createNotificationInputSchema,
+  getNotificationsInputSchema,
+  createChatbotQuestionInputSchema,
+  updateChatbotQuestionInputSchema,
+  chatbotAskInputSchema,
+} from "./schema";
 
 // ==================== UTILITY ====================
 export function buildUrl(template: string, params: Record<string, string | number>): string {
@@ -252,6 +262,36 @@ export const api = {
     read: {
       path: "/api/notifications/:id/read",
       method: "PATCH" as const,
+    },
+  },
+  // Chatbot
+  chatbot: {
+    list: {
+      path: "/api/chatbot/questions",
+      method: "GET" as const,
+      responses: { 200: z.array(z.object({} as ChatbotQuestion)) },
+    },
+    create: {
+      path: "/api/chatbot/questions",
+      method: "POST" as const,
+      input: createChatbotQuestionInputSchema,
+      responses: { 201: z.object({} as ChatbotQuestion) },
+    },
+    update: {
+      path: "/api/chatbot/questions/:id",
+      method: "PUT" as const,
+      input: updateChatbotQuestionInputSchema,
+      responses: { 200: z.object({} as ChatbotQuestion) },
+    },
+    delete: {
+      path: "/api/chatbot/questions/:id",
+      method: "DELETE" as const,
+    },
+    ask: {
+      path: "/api/chatbot/ask",
+      method: "POST" as const,
+      input: chatbotAskInputSchema,
+      responses: { 200: z.any() },
     },
   },
 } as const;

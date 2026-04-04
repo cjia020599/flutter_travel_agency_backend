@@ -173,6 +173,18 @@ export const ratings = pgTable("ratings", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// ==================== CHATBOT ====================
+export const chatbotQuestions = pgTable("chatbot_questions", {
+  id: serial("id").primaryKey(),
+  question: text("question").notNull(),
+  answer: text("answer").notNull(),
+  aliases: jsonb("aliases").default([]),
+  keywords: jsonb("keywords").default([]),
+  active: boolean("active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // ==================== INSERT SCHEMAS ====================
 export const insertRoleSchema = createInsertSchema(roles).omit({ id: true, createdAt: true });
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true });
@@ -194,6 +206,12 @@ export const insertRatingSchema = createInsertSchema(ratings).omit({
   updatedAt: true,
 });
 
+export const insertChatbotQuestionSchema = createInsertSchema(chatbotQuestions).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 export const createRatingInputSchema = z.object({
   moduleType: z.enum(["car", "tour"]),
   moduleId: z.coerce.number().int().positive(),
@@ -206,6 +224,30 @@ export const updateRatingInputSchema = z.object({
   comment: z.string().trim().min(1).max(2000).optional(),
 }).refine((data) => data.stars !== undefined || data.comment !== undefined, {
   message: "At least one field (stars or comment) is required",
+});
+
+export const createChatbotQuestionInputSchema = z.object({
+  question: z.string().trim().min(1),
+  answer: z.string().trim().min(1),
+  aliases: z.array(z.string().trim().min(1)).optional().default([]),
+  keywords: z.array(z.string().trim().min(1)).optional().default([]),
+  active: z.boolean().optional().default(true),
+});
+
+export const updateChatbotQuestionInputSchema = z.object({
+  question: z.string().trim().min(1).optional(),
+  answer: z.string().trim().min(1).optional(),
+  aliases: z.array(z.string().trim().min(1)).optional(),
+  keywords: z.array(z.string().trim().min(1)).optional(),
+  active: z.boolean().optional(),
+}).refine((data) => Object.keys(data).length > 0, {
+  message: "At least one field is required",
+});
+
+export const chatbotAskInputSchema = z.object({
+  question: z.string().trim().min(1),
+  minScore: z.coerce.number().min(0).max(1).optional(),
+  topK: z.coerce.number().int().min(1).max(10).optional(),
 });
 
 export const insertCarRentalSchema = insertBookingSchema.extend({
@@ -282,6 +324,7 @@ export type Tour = typeof tours.$inferSelect;
 export type Car = typeof cars.$inferSelect;
 export type Booking = typeof bookings.$inferSelect;
 export type Rating = typeof ratings.$inferSelect;
+export type ChatbotQuestion = typeof chatbotQuestions.$inferSelect;
 
 export type CarRental = Booking & {
   car: Pick<Car, "id" | "title" | "price" | "imageUrl" | "locationId">;
@@ -306,8 +349,12 @@ export type InsertTour = z.infer<typeof insertTourSchema>;
 export type InsertCar = z.infer<typeof insertCarSchema>;
 export type InsertBooking = z.infer<typeof insertBookingSchema>;
 export type InsertRating = z.infer<typeof insertRatingSchema>;
+export type InsertChatbotQuestion = z.infer<typeof insertChatbotQuestionSchema>;
 export type CreateRatingInput = z.infer<typeof createRatingInputSchema>;
 export type UpdateRatingInput = z.infer<typeof updateRatingInputSchema>;
+export type CreateChatbotQuestionInput = z.infer<typeof createChatbotQuestionInputSchema>;
+export type UpdateChatbotQuestionInput = z.infer<typeof updateChatbotQuestionInputSchema>;
+export type ChatbotAskInput = z.infer<typeof chatbotAskInputSchema>;
 
 export const notifications = pgTable("notifications", {
   id: serial("id").primaryKey(),
