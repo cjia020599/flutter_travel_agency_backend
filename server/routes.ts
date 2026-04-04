@@ -305,7 +305,10 @@ app.post('/api/upload/image', requireAuth, upload.fields([{ name: 'image', maxCo
     try {
       const input = api.tours.create.input.parse(req.body);
       const { attributeIds, ...tourData } = input;
-      const tour = await storage.createTour(tourData);
+      const tour = await storage.createTour({
+        ...tourData,
+        authorId: (req as any).user?.id,
+      });
       if (attributeIds && attributeIds.length > 0) {
         const values = attributeIds.map(attrId => ({ tourId: tour.id, attributeId: attrId }));
         await db.insert(tourAttributes).values(values);
@@ -381,7 +384,10 @@ app.post('/api/upload/image', requireAuth, upload.fields([{ name: 'image', maxCo
       const input = api.cars.create.input.parse(req.body);
       console.log("Creating car with input:", input);
       const { attributeIds, ...carData } = input;
-      const car = await storage.createCar(carData);
+      const car = await storage.createCar({
+        ...carData,
+        authorId: (req as any).user?.id,
+      });
       if (attributeIds && attributeIds.length > 0) {
         const values = attributeIds.map(attrId => ({ carId: car.id, attributeId: attrId }));
         await db.insert(carAttributes).values(values);
