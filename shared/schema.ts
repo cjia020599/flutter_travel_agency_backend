@@ -248,6 +248,12 @@ export const chatbotAskInputSchema = z.object({
   question: z.string().trim().min(1),
   minScore: z.coerce.number().min(0).max(1).optional(),
   topK: z.coerce.number().int().min(1).max(10).optional(),
+  intent: z.enum(["near_me", "best_deal", "most_popular"]).optional(),
+  moduleType: z.enum(["car", "tour"]).optional(),
+  exclude: z.array(z.object({
+    id: z.coerce.number().int().positive(),
+    kind: z.enum(["car", "tour"]),
+  })).optional(),
 });
 
 export const insertCarRentalSchema = insertBookingSchema.extend({

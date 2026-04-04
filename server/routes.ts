@@ -122,6 +122,7 @@ type BuiltinChatbotMatch = {
   answer: string;
   intent: "near_me" | "best_deal" | "most_popular";
   suggestions: SuggestionItem[];
+  moduleType: "car" | "tour" | null;
 };
 
 function detectBuiltinChatbotResponse(question: string): BuiltinChatbotMatch | null {
@@ -129,6 +130,36 @@ function detectBuiltinChatbotResponse(question: string): BuiltinChatbotMatch | n
   if (!q) return null;
 
   const matchAny = (patterns: RegExp[]) => patterns.some((p) => p.test(q));
+
+  const carPatterns = [
+    /\bcar\b/,
+    /\bcars\b/,
+    /\bvehicle\b/,
+    /\bvehicles\b/,
+    /\brental\b/,
+    /\brent a car\b/,
+    /\brent\b/,
+    /\bauto\b/,
+    /\bsuv\b/,
+    /\bsedan\b/,
+    /\bvan\b/,
+  ];
+  const tourPatterns = [
+    /\btour\b/,
+    /\btours\b/,
+    /\btrip\b/,
+    /\btrips\b/,
+    /\bactivity\b/,
+    /\bactivities\b/,
+    /\battraction\b/,
+    /\battractions\b/,
+    /\bsightseeing\b/,
+    /\bexcursion\b/,
+  ];
+
+  const hasCar = matchAny(carPatterns);
+  const hasTour = matchAny(tourPatterns);
+  const moduleType = hasCar && !hasTour ? "car" : hasTour && !hasCar ? "tour" : null;
 
   const nearMePatterns = [
     /\bnear\b/,
@@ -199,13 +230,17 @@ function detectBuiltinChatbotResponse(question: string): BuiltinChatbotMatch | n
   ];
   const hasMostPopular = matchAny(mostPopularPatterns);
 
-  const intent = hasBestDeal ? "best_deal" : hasNearMe ? "near_me" : hasMostPopular ? "most_popular" : null;
+  let intent = hasBestDeal ? "best_deal" : hasNearMe ? "near_me" : hasMostPopular ? "most_popular" : null;
+  if (!intent && q.includes("more")) {
+    intent = "most_popular";
+  }
   if (!intent) return null;
 
   return {
     intent,
     answer: "",
     suggestions: [],
+    moduleType,
   };
 }
 
@@ -264,57 +299,70 @@ function formatSuggestionList(suggestions: SuggestionItem[]): string {
   return lines.join("\n");
 }
 
-async function fetchSuggestions(intent: BuiltinChatbotMatch["intent"], count: number): Promise<SuggestionItem[]> {
+async function fetchSuggestions(
+  intent: BuiltinChatbotMatch["intent"],
+  count: number,
+  moduleType: "car" | "tour" | null,
+  exclude: SuggestionItem[]
+): Promise<SuggestionItem[]> {
   const limitPerType = Math.max(3, count);
-  const tourRows = await db
-    .select({
-      id: tours.id,
-      title: tours.title,
-      price: tours.price,
-      salePrice: tours.salePrice,
-      imageUrl: tours.imageUrl,
-      isFeatured: tours.isFeatured,
-    })
-    .from(tours)
-    .where(and(eq(tours.status, "publish"), isNull(tours.deletedAt)))
-    .orderBy(desc(tours.isFeatured), desc(tours.id))
-    .limit(limitPerType);
+  let toursList: SuggestionItem[] = [];
+  let carsList: SuggestionItem[] = [];
 
-  const carRows = await db
-    .select({
-      id: cars.id,
-      title: cars.title,
-      price: cars.price,
-      salePrice: cars.salePrice,
-      imageUrl: cars.imageUrl,
-      isFeatured: cars.isFeatured,
-    })
-    .from(cars)
-    .where(and(eq(cars.status, "publish"), isNull(cars.deletedAt)))
-    .orderBy(desc(cars.isFeatured), desc(cars.id))
-    .limit(limitPerType);
+  if (moduleType !== "car") {
+    const tourRows = await db
+      .select({
+        id: tours.id,
+        title: tours.title,
+        price: tours.price,
+        salePrice: tours.salePrice,
+        imageUrl: tours.imageUrl,
+        isFeatured: tours.isFeatured,
+      })
+      .from(tours)
+      .where(and(eq(tours.status, "publish"), isNull(tours.deletedAt)))
+      .orderBy(desc(tours.isFeatured), desc(tours.id))
+      .limit(limitPerType);
 
-  const toursList: SuggestionItem[] = tourRows.map((r) => ({
-    id: r.id,
-    title: r.title,
-    price: r.price ?? null,
-    salePrice: r.salePrice ?? null,
-    imageUrl: r.imageUrl ?? null,
-    kind: "tour",
-    featured: r.isFeatured ?? null,
-  }));
+    toursList = tourRows.map((r) => ({
+      id: r.id,
+      title: r.title,
+      price: r.price ?? null,
+      salePrice: r.salePrice ?? null,
+      imageUrl: r.imageUrl ?? null,
+      kind: "tour",
+      featured: r.isFeatured ?? null,
+    }));
+  }
 
-  const carsList: SuggestionItem[] = carRows.map((r) => ({
-    id: r.id,
-    title: r.title,
-    price: r.price ?? null,
-    salePrice: r.salePrice ?? null,
-    imageUrl: r.imageUrl ?? null,
-    kind: "car",
-    featured: r.isFeatured ?? null,
-  }));
+  if (moduleType !== "tour") {
+    const carRows = await db
+      .select({
+        id: cars.id,
+        title: cars.title,
+        price: cars.price,
+        salePrice: cars.salePrice,
+        imageUrl: cars.imageUrl,
+        isFeatured: cars.isFeatured,
+      })
+      .from(cars)
+      .where(and(eq(cars.status, "publish"), isNull(cars.deletedAt)))
+      .orderBy(desc(cars.isFeatured), desc(cars.id))
+      .limit(limitPerType);
 
-  let combined = [...toursList, ...carsList];
+    carsList = carRows.map((r) => ({
+      id: r.id,
+      title: r.title,
+      price: r.price ?? null,
+      salePrice: r.salePrice ?? null,
+      imageUrl: r.imageUrl ?? null,
+      kind: "car",
+      featured: r.isFeatured ?? null,
+    }));
+  }
+
+  const excludeKey = new Set(exclude.map((item) => `${item.kind}:${item.id}`));
+  let combined = [...toursList, ...carsList].filter((item) => !excludeKey.has(`${item.kind}:${item.id}`));
 
   if (intent === "best_deal") {
     combined = combined.sort((a, b) => effectivePrice(a) - effectivePrice(b));
@@ -335,6 +383,13 @@ async function fetchSuggestions(intent: BuiltinChatbotMatch["intent"], count: nu
   }
 
   return combined.slice(0, count);
+}
+
+function splitSuggestions(suggestions: SuggestionItem[]) {
+  return {
+    tours: suggestions.filter((s) => s.kind === "tour"),
+    cars: suggestions.filter((s) => s.kind === "car"),
+  };
 }
 
 export async function registerRoutes(
@@ -1080,48 +1135,106 @@ app.get('/api/reports/cars', requireAuth, async (req, res) => {
     try {
       const input = chatbotAskInputSchema.parse(req.body);
       const builtin = detectBuiltinChatbotResponse(input.question);
-      if (builtin) {
+      const intentFromInput = input.intent;
+      const moduleTypeFromInput = input.moduleType ?? null;
+      const excludeItems: SuggestionItem[] = (input.exclude ?? []).map((item) => ({
+        id: item.id,
+        title: "",
+        price: null,
+        salePrice: null,
+        imageUrl: null,
+        kind: item.kind,
+        featured: null,
+      }));
+      const effectiveBuiltin =
+        builtin ??
+        (intentFromInput
+          ? { intent: intentFromInput, answer: "", suggestions: [], moduleType: moduleTypeFromInput }
+          : null);
+
+      if (effectiveBuiltin) {
+        if (!effectiveBuiltin.moduleType && moduleTypeFromInput) {
+          effectiveBuiltin.moduleType = moduleTypeFromInput;
+        }
         const defaultCount = wantsMoreSuggestions(input.question) ? 5 : 3;
         const count = clampSuggestionCount(input.topK ?? defaultCount);
-        const suggestions = await fetchSuggestions(builtin.intent, count);
-        const listText = formatSuggestionList(suggestions);
+        const suggestions = await fetchSuggestions(
+          effectiveBuiltin.intent,
+          count,
+          effectiveBuiltin.moduleType,
+          excludeItems
+        );
+        const split = splitSuggestions(suggestions);
+        const listText =
+          effectiveBuiltin.moduleType === "car"
+            ? formatSuggestionList(split.cars)
+            : effectiveBuiltin.moduleType === "tour"
+            ? formatSuggestionList(split.tours)
+            : [
+                split.tours.length ? `Tours:\n${formatSuggestionList(split.tours)}` : "",
+                split.cars.length ? `Cars:\n${formatSuggestionList(split.cars)}` : "",
+              ]
+                .filter(Boolean)
+                .join("\n");
         const variant = pickSentenceVariant(input.question, count);
 
         let intro = "";
         let outro = "";
-        if (builtin.intent === "near_me") {
+        if (effectiveBuiltin.intent === "near_me") {
+          const target =
+            effectiveBuiltin.moduleType === "car"
+              ? "cars"
+              : effectiveBuiltin.moduleType === "tour"
+              ? "tours"
+              : "options";
           const intros = [
-            "Here are some nearby-style picks to get you started:",
-            "I can help with nearby options. Here are a few ideas:",
-            "Nearby suggestions coming up:",
+            `Here are some nearby ${target} to get you started:`,
+            `I can help with nearby ${target}. Here are a few ideas:`,
+            `Nearby ${target} coming up:`,
           ];
           intro = intros[variant];
           outro = "Share your city or enable location for even closer matches.";
-        } else if (builtin.intent === "best_deal") {
+        } else if (effectiveBuiltin.intent === "best_deal") {
+          const target =
+            effectiveBuiltin.moduleType === "car"
+              ? "cars"
+              : effectiveBuiltin.moduleType === "tour"
+              ? "tours"
+              : "options";
           const intros = [
-            "Here are budget-friendly options:",
-            "Best deal ideas to start with:",
-            "Lowest-priced picks right now:",
+            `Here are budget-friendly ${target}:`,
+            `Best deal ${target} to start with:`,
+            `Lowest-priced ${target} right now:`,
           ];
           intro = intros[variant];
           outro = "Tell me your budget and dates if you want tighter matches.";
         } else {
+          const target =
+            effectiveBuiltin.moduleType === "car"
+              ? "cars"
+              : effectiveBuiltin.moduleType === "tour"
+              ? "tours"
+              : "options";
           const intros = [
-            "Popular picks right now:",
-            "Top choices people like:",
-            "Here are the most popular-style options:",
+            `Popular ${target} right now:`,
+            `Top ${target} people like:`,
+            `Here are the most popular ${target}:`,
           ];
           intro = intros[variant];
           outro = "Share your destination and dates if you want more tailored picks.";
         }
 
         const answerParts = [intro];
-        if (listText) answerParts.push(listText);
+        if (listText) {
+          answerParts.push(listText);
+        } else {
+          answerParts.push("I do not see any matching items yet. Try another search.");
+        }
         if (outro) answerParts.push(outro);
 
         return res.json({
           answer: answerParts.filter(Boolean).join("\n"),
-          matched: { intent: builtin.intent },
+          matched: { intent: effectiveBuiltin.intent, moduleType: effectiveBuiltin.moduleType },
           suggestions,
           top: [],
         });
