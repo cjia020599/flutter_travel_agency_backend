@@ -21,7 +21,7 @@ import {
 
 
 import { signToken, requireAuth, requireAdmin } from "./auth";
-import { eq, and, isNull, desc } from "drizzle-orm";
+import { eq, and, isNull, desc, sql } from "drizzle-orm";
 
 
 import { db } from "./db";
@@ -303,7 +303,8 @@ async function fetchSuggestions(
   intent: BuiltinChatbotMatch["intent"],
   count: number,
   moduleType: "car" | "tour" | null,
-  exclude: SuggestionItem[]
+  exclude: SuggestionItem[],
+  locationId: number | null
 ): Promise<SuggestionItem[]> {
   const limitPerType = Math.max(3, count);
   let toursList: SuggestionItem[] = [];
@@ -320,7 +321,13 @@ async function fetchSuggestions(
         isFeatured: tours.isFeatured,
       })
       .from(tours)
-      .where(and(eq(tours.status, "publish"), isNull(tours.deletedAt)))
+      .where(
+        and(
+          eq(tours.status, "publish"),
+          isNull(tours.deletedAt),
+          locationId ? eq(tours.locationId, locationId) : sql`true`
+        )
+      )
       .orderBy(desc(tours.isFeatured), desc(tours.id))
       .limit(limitPerType);
 
@@ -346,7 +353,13 @@ async function fetchSuggestions(
         isFeatured: cars.isFeatured,
       })
       .from(cars)
-      .where(and(eq(cars.status, "publish"), isNull(cars.deletedAt)))
+      .where(
+        and(
+          eq(cars.status, "publish"),
+          isNull(cars.deletedAt),
+          locationId ? eq(cars.locationId, locationId) : sql`true`
+        )
+      )
       .orderBy(desc(cars.isFeatured), desc(cars.id))
       .limit(limitPerType);
 
@@ -382,6 +395,10 @@ async function fetchSuggestions(
     });
   }
 
+  if (locationId && combined.length === 0) {
+    return fetchSuggestions(intent, count, moduleType, exclude, null);
+  }
+
   return combined.slice(0, count);
 }
 
@@ -390,6 +407,24 @@ function splitSuggestions(suggestions: SuggestionItem[]) {
     tours: suggestions.filter((s) => s.kind === "tour"),
     cars: suggestions.filter((s) => s.kind === "car"),
   };
+}
+
+async function resolveLocationIdForUser(user?: { city?: string | null; country?: string | null }): Promise<number | null> {
+  if (!user) return null;
+  const candidates = [user.city, user.country]
+    .map((v) => (v ? String(v).trim() : ""))
+    .filter(Boolean);
+
+  for (const name of candidates) {
+    const lower = name.toLowerCase();
+    const rows = await db
+      .select({ id: locations.id })
+      .from(locations)
+      .where(and(sql`lower(${locations.name}) = ${lower}`, isNull(locations.deletedAt)))
+      .limit(1);
+    if (rows.length > 0) return rows[0].id;
+  }
+  return null;
 }
 
 export async function registerRoutes(
@@ -1137,6 +1172,7 @@ app.get('/api/reports/cars', requireAuth, async (req, res) => {
       const builtin = detectBuiltinChatbotResponse(input.question);
       const intentFromInput = input.intent;
       const moduleTypeFromInput = input.moduleType ?? null;
+      const user = (req as any).user as { city?: string | null; country?: string | null } | undefined;
       const excludeItems: SuggestionItem[] = (input.exclude ?? []).map((item) => ({
         id: item.id,
         title: "",
@@ -1146,6 +1182,7 @@ app.get('/api/reports/cars', requireAuth, async (req, res) => {
         kind: item.kind,
         featured: null,
       }));
+      const locationId = await resolveLocationIdForUser(user);
       const effectiveBuiltin =
         builtin ??
         (intentFromInput
@@ -1162,7 +1199,8 @@ app.get('/api/reports/cars', requireAuth, async (req, res) => {
           effectiveBuiltin.intent,
           count,
           effectiveBuiltin.moduleType,
-          excludeItems
+          excludeItems,
+          locationId
         );
         const split = splitSuggestions(suggestions);
         const listText =
@@ -1193,7 +1231,6 @@ app.get('/api/reports/cars', requireAuth, async (req, res) => {
             `Nearby ${target} coming up:`,
           ];
           intro = intros[variant];
-          outro = "Share your city or enable location for even closer matches.";
         } else if (effectiveBuiltin.intent === "best_deal") {
           const target =
             effectiveBuiltin.moduleType === "car"
@@ -1207,7 +1244,6 @@ app.get('/api/reports/cars', requireAuth, async (req, res) => {
             `Lowest-priced ${target} right now:`,
           ];
           intro = intros[variant];
-          outro = "Tell me your budget and dates if you want tighter matches.";
         } else {
           const target =
             effectiveBuiltin.moduleType === "car"
@@ -1221,16 +1257,24 @@ app.get('/api/reports/cars', requireAuth, async (req, res) => {
             `Here are the most popular ${target}:`,
           ];
           intro = intros[variant];
-          outro = "Share your destination and dates if you want more tailored picks.";
         }
 
-        const answerParts = [intro];
+        const answerParts = [];
         if (listText) {
+          answerParts.push(intro);
           answerParts.push(listText);
+          const moreTarget =
+            effectiveBuiltin.moduleType === "car"
+              ? "Car"
+              : effectiveBuiltin.moduleType === "tour"
+              ? "Tour"
+              : "Car or Tour";
+          outro = `You can see more result when you search in the ${moreTarget} tab page.`;
+          answerParts.push(outro);
         } else {
-          answerParts.push("I do not see any matching items yet. Try another search.");
+          answerParts.push(intro);
+          answerParts.push("No results found yet.");
         }
-        if (outro) answerParts.push(outro);
 
         return res.json({
           answer: answerParts.filter(Boolean).join("\n"),
