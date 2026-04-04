@@ -118,6 +118,102 @@ function similarityScore(query: string, candidate: string, keywords: string[]): 
   return score;
 }
 
+type BuiltinChatbotMatch = {
+  answer: string;
+  intent: "near_me" | "best_deal" | "most_popular";
+};
+
+function detectBuiltinChatbotResponse(question: string): BuiltinChatbotMatch | null {
+  const q = normalizeText(question);
+  if (!q) return null;
+
+  const matchAny = (patterns: RegExp[]) => patterns.some((p) => p.test(q));
+
+  const nearMePatterns = [
+    /\bnear me\b/,
+    /\bnearby\b/,
+    /\bclosest\b/,
+    /\baround me\b/,
+    /\baround here\b/,
+    /\bin my area\b/,
+    /\bnear my location\b/,
+    /\bclose to me\b/,
+    /\bclose by\b/,
+    /\bclosest to me\b/,
+    /\bnear my place\b/,
+    /\bnear my area\b/,
+    /\bnear us\b/,
+    /\bnear here\b/,
+    /\bwithin walking distance\b/,
+  ];
+  if (matchAny(nearMePatterns)) {
+    return {
+      intent: "near_me",
+      answer:
+        "I can help find options near you. Share your city or enable location in the app, and I will suggest nearby tours and cars.",
+    };
+  }
+
+  const bestDealPatterns = [
+    /\bbest deal\b/,
+    /\bbest deals\b/,
+    /\bbest price\b/,
+    /\blowest price\b/,
+    /\blowest cost\b/,
+    /\bcheapest\b/,
+    /\bmost affordable\b/,
+    /\baffordable\b/,
+    /\bbest value\b/,
+    /\bgood deal\b/,
+    /\bgreat deal\b/,
+    /\bdiscount\b/,
+    /\bdiscounted\b/,
+    /\bon sale\b/,
+    /\bsale\b/,
+    /\bpromo\b/,
+    /\bpromotion\b/,
+    /\bdeal of the day\b/,
+    /\bspecial offer\b/,
+    /\boffers\b/,
+    /\bbargain\b/,
+    /\bvalue for money\b/,
+  ];
+  if (matchAny(bestDealPatterns)) {
+    return {
+      intent: "best_deal",
+      answer:
+        "Looking for the best deal? Tell me your budget and dates, and I will highlight the lowest-priced or discounted options.",
+    };
+  }
+
+  const mostPopularPatterns = [
+    /\bmost popular\b/,
+    /\bpopular\b/,
+    /\btop rated\b/,
+    /\bhighest rated\b/,
+    /\bbest rated\b/,
+    /\btop\b/,
+    /\btop picks\b/,
+    /\btop choice\b/,
+    /\btrending\b/,
+    /\bpopular right now\b/,
+    /\bmost booked\b/,
+    /\bmost loved\b/,
+    /\bhot\b/,
+    /\bviral\b/,
+    /\brecommended\b/,
+  ];
+  if (matchAny(mostPopularPatterns)) {
+    return {
+      intent: "most_popular",
+      answer:
+        "Want the most popular picks? Share your destination and dates, and I will show the top booked or highest rated options.",
+    };
+  }
+
+  return null;
+}
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -860,6 +956,14 @@ app.get('/api/reports/cars', requireAuth, async (req, res) => {
   app.post(api.chatbot.ask.path, async (req, res) => {
     try {
       const input = chatbotAskInputSchema.parse(req.body);
+      const builtin = detectBuiltinChatbotResponse(input.question);
+      if (builtin) {
+        return res.json({
+          answer: builtin.answer,
+          matched: { intent: builtin.intent },
+          top: [],
+        });
+      }
       const items = await storage.getActiveChatbotQuestions();
       const minScore = input.minScore ?? 0.35;
       const topK = input.topK ?? 3;
