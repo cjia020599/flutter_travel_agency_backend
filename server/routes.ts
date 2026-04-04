@@ -76,6 +76,25 @@ function tokenize(input: string): string[] {
   return normalized.split(" ").filter(Boolean);
 }
 
+function normalizeProfileBody(body: Record<string, unknown>) {
+  const normalized = { ...body };
+  const map: Record<string, string> = {
+    first_name: "firstName",
+    last_name: "lastName",
+    address_line1: "addressLine1",
+    address_line2: "addressLine2",
+    zip_code: "zipCode",
+  };
+
+  for (const [from, to] of Object.entries(map)) {
+    if (normalized[from] !== undefined && normalized[to] === undefined) {
+      normalized[to] = normalized[from];
+    }
+  }
+
+  return normalized;
+}
+
 function jaccardScore(aTokens: string[], bTokens: string[]): number {
   if (aTokens.length === 0 || bTokens.length === 0) return 0;
   const aSet = new Set(aTokens);
@@ -508,7 +527,7 @@ export async function registerRoutes(
   app.put(api.user.updateProfile.path, requireAuth, async (req, res) => {
     try {
       const user = (req as any).user;
-      const input = updateProfileSchema.parse(req.body);
+      const input = updateProfileSchema.parse(normalizeProfileBody(req.body));
       const updated = await storage.updateUser(user.id, input);
       return res.json(updated);
     } catch (e) {
@@ -640,7 +659,7 @@ app.post('/api/upload/image', requireAuth, upload.fields([{ name: 'image', maxCo
       const user = await storage.getUserById(id);
       if (!user) return res.status(404).json({ message: "Not found" });
 
-      const input = updateProfileSchema.parse(req.body);
+      const input = updateProfileSchema.parse(normalizeProfileBody(req.body));
       const updated = await storage.updateUser(id, input);
       return res.json(updated);
     } catch (e) {
