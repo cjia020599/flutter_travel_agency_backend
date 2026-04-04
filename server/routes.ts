@@ -566,6 +566,32 @@ app.get('/api/reports/cars', requireAuth, async (req, res) => {
         buyerPhone: input.buyerPhone,
         status: "confirmed",
       });
+      // Create notifications for buyer and vendor (if any)
+      try {
+        const buyerId = (req as any).user.id as number;
+        const tour = await storage.getTour(input.tourId);
+        const buyerNotification = await storage.createNotification({
+          userId: buyerId,
+          title: "Tour booking confirmed",
+          message: `Your booking for "${tour?.title ?? "tour"}" is confirmed.`,
+          type: "booking",
+          data: { moduleType: "tour", moduleId: input.tourId, bookingId: booking.id },
+        });
+        (global as any).emitNotification?.(buyerId, buyerNotification);
+
+        if (tour?.authorId && tour.authorId !== buyerId) {
+          const vendorNotification = await storage.createNotification({
+            userId: tour.authorId,
+            title: "New tour booking",
+            message: `A new booking was made for "${tour.title}".`,
+            type: "booking",
+            data: { moduleType: "tour", moduleId: input.tourId, bookingId: booking.id, buyerId },
+          });
+          (global as any).emitNotification?.(tour.authorId, vendorNotification);
+        }
+      } catch (notifyErr) {
+        console.error("Tour booking notification error:", notifyErr);
+      }
       res.status(201).json(booking);
     } catch (e) {
       if (e instanceof z.ZodError) {
@@ -607,6 +633,32 @@ app.get('/api/reports/cars', requireAuth, async (req, res) => {
         buyerPhone: input.buyerPhone,
         status: "confirmed",
       });
+      // Create notifications for buyer and vendor (if any)
+      try {
+        const buyerId = (req as any).user.id as number;
+        const car = await storage.getCar(input.carId);
+        const buyerNotification = await storage.createNotification({
+          userId: buyerId,
+          title: "Car rental confirmed",
+          message: `Your rental for "${car?.title ?? "car"}" is confirmed.`,
+          type: "booking",
+          data: { moduleType: "car", moduleId: input.carId, bookingId: rental.id },
+        });
+        (global as any).emitNotification?.(buyerId, buyerNotification);
+
+        if (car?.authorId && car.authorId !== buyerId) {
+          const vendorNotification = await storage.createNotification({
+            userId: car.authorId,
+            title: "New car rental",
+            message: `A new rental was made for "${car.title}".`,
+            type: "booking",
+            data: { moduleType: "car", moduleId: input.carId, bookingId: rental.id, buyerId },
+          });
+          (global as any).emitNotification?.(car.authorId, vendorNotification);
+        }
+      } catch (notifyErr) {
+        console.error("Car rental notification error:", notifyErr);
+      }
       res.status(201).json(rental);
     } catch (e) {
       if (e instanceof z.ZodError) {
@@ -655,6 +707,7 @@ app.get('/api/reports/cars', requireAuth, async (req, res) => {
     try {
       const input = createNotificationInputSchema.parse(req.body);
       const notification = await storage.createNotification(input);
+      (global as any).emitNotification?.(notification.userId, notification);
       res.status(201).json(notification);
     } catch (e) {
       if (e instanceof z.ZodError) {
