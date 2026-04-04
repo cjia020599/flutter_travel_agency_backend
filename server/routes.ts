@@ -1,4 +1,4 @@
-import type { Express } from "express";
+import type { Express, Response } from "express";
 import WebSocket from 'ws';
 import jwt from 'jsonwebtoken';
 import { tourAttributes, carAttributes, roles, locations, attributes, tours, cars, bookings, notifications, eq } from "@shared/schema";
@@ -78,21 +78,23 @@ function tokenize(input: string): string[] {
 
 function normalizeProfileBody(body: Record<string, unknown>) {
   const normalized = { ...body };
-  const map: Record<string, string> = {
-    first_name: "firstName",
-    last_name: "lastName",
-    address_line1: "addressLine1",
-    address_line2: "addressLine2",
-    zip_code: "zipCode",
-  };
+  const allowedKeys = new Set(Object.keys(updateProfileSchema.shape));
 
-  for (const [from, to] of Object.entries(map)) {
-    if (normalized[from] !== undefined && normalized[to] === undefined) {
-      normalized[to] = normalized[from];
+  for (const [key, value] of Object.entries(normalized)) {
+    if (!key.includes("_")) continue;
+    const camel = key.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
+    if (allowedKeys.has(camel) && normalized[camel] === undefined) {
+      normalized[camel] = value;
     }
   }
 
   return normalized;
+}
+
+function rejectEmptyProfileUpdate(input: Record<string, unknown>, res: Response) {
+  if (Object.keys(input).length > 0) return true;
+  res.status(400).json({ message: "No valid profile fields to update" });
+  return false;
 }
 
 function jaccardScore(aTokens: string[], bTokens: string[]): number {
@@ -528,6 +530,22 @@ export async function registerRoutes(
     try {
       const user = (req as any).user;
       const input = updateProfileSchema.parse(normalizeProfileBody(req.body));
+      if (!rejectEmptyProfileUpdate(input, res)) return;
+      const updated = await storage.updateUser(user.id, input);
+      return res.json(updated);
+    } catch (e) {
+      if (e instanceof z.ZodError) {
+        return res.status(400).json({ message: e.errors[0].message, field: e.errors[0].path.join(".") });
+      }
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.put("/api/user/profile/update", requireAuth, async (req, res) => {
+    try {
+      const user = (req as any).user;
+      const input = updateProfileSchema.parse(normalizeProfileBody(req.body));
+      if (!rejectEmptyProfileUpdate(input, res)) return;
       const updated = await storage.updateUser(user.id, input);
       return res.json(updated);
     } catch (e) {
@@ -660,6 +678,7 @@ app.post('/api/upload/image', requireAuth, upload.fields([{ name: 'image', maxCo
       if (!user) return res.status(404).json({ message: "Not found" });
 
       const input = updateProfileSchema.parse(normalizeProfileBody(req.body));
+      if (!rejectEmptyProfileUpdate(input, res)) return;
       const updated = await storage.updateUser(id, input);
       return res.json(updated);
     } catch (e) {

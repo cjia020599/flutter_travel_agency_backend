@@ -99,7 +99,7 @@ export function useUpdateProfile() {
 
   return useMutation({
     mutationFn: async (input: Partial<AuthUser>) => {
-      const res = await fetchWithAuth("/api/user/profile/update", {
+      const res = await fetchWithAuth("/api/user/profile", {
         method: "PUT",
         body: JSON.stringify(input),
       });
