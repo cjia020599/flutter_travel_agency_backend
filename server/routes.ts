@@ -7,8 +7,7 @@ import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { storage } from "./storage";
 import { api } from "@shared/routes";
-import {
-  registerSchema,
+
   loginSchema,
   updateProfileSchema,
   reportFiltersSchema,
