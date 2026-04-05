@@ -97,99 +97,6 @@ function rejectEmptyProfileUpdate(input: Record<string, unknown>, res: Response)
   return false;
 }
 
-function normalizeCarBody(body: Record<string, unknown>) {
-  const normalized = { ...body };
-  const carFields = new Set([
-    'title', 'slug', 'content', 'videoUrl', 'imageUrl', 'status', 'isFeatured', 
-    'passenger', 'gearShift', 'baggage', 'door', 'inventoryCount', 'minDayStay', 
-    'minDayBeforeBooking', 'mapLat', 'mapLng', 'mapZoom', 'realAddress', 
-    'price', 'salePrice', 'extraPrices', 'serviceFees', 'fixedDates', 
-    'openHours', 'locationId', 'authorId'
-  ]);
-
-  // Common snake_case mappings for cars
-  const mappings: Record<string, string> = {
-    'car_title': 'title',
-    'car_slug': 'slug', 
-    'car_content': 'content',
-    'video_url': 'videoUrl',
-    'image_url': 'imageUrl',
-    'is_featured': 'isFeatured',
-    'passenger_count': 'passenger',
-    'gear_shift': 'gearShift',
-    'baggage_count': 'baggage',
-    'door_count': 'door',
-    'inventory_count': 'inventoryCount',
-    'min_day_stay': 'minDayStay',
-    'min_day_before_booking': 'minDayBeforeBooking',
-    'map_lat': 'mapLat',
-    'map_lng': 'mapLng',
-    'real_address': 'realAddress',
-    'price_per_day': 'price',
-    'sale_price_per_day': 'salePrice',
-    'location_id': 'locationId'
-  };
-
-  for (const [snakeKey, camelKey] of Object.entries(mappings)) {
-    if (body[snakeKey] !== undefined && normalized[camelKey] === undefined && carFields.has(camelKey)) {
-      normalized[camelKey] = body[snakeKey];
-    }
-  }
-
-  return normalized;
-}
-
-function normalizeTourBody(body: Record<string, unknown>) {
-  const normalized = { ...body };
-  const tourFields = new Set([
-    'title', 'slug', 'content', 'videoUrl', 'imageUrl', 'status', 'isFeatured',
-    'duration', 'minPeople', 'maxPeople', 'minDayBeforeBooking', 'itinerary', 
-    'faqs', 'include', 'exclude', 'surroundings', 'mapLat', 'mapLng', 
-    'mapZoom', 'realAddress', 'price', 'salePrice', 'extraPrices', 
-    'serviceFees', 'personTypes', 'discountByPeople', 'fixedDates', 
-    'openHours', 'locationId', 'authorId'
-  ]);
-
-  const mappings: Record<string, string> = {
-    'tour_title': 'title',
-    'tour_slug': 'slug',
-    'tour_content': 'content',
-    'video_url': 'videoUrl', 
-    'image_url': 'imageUrl',
-    'is_featured': 'isFeatured',
-    'tour_duration': 'duration',
-    'min_people': 'minPeople', 
-    'max_people': 'maxPeople',
-    'min_day_before_booking': 'minDayBeforeBooking',
-    'map_lat': 'mapLat',
-    'map_lng': 'mapLng',
-    'real_address': 'realAddress',
-    'tour_price': 'price',
-    'tour_sale_price': 'salePrice',
-    'location_id': 'locationId'
-  };
-
-  for (const [snakeKey, camelKey] of Object.entries(mappings)) {
-    if (body[snakeKey] !== undefined && normalized[camelKey] === undefined && tourFields.has(camelKey)) {
-      normalized[camelKey] = body[snakeKey];
-    }
-  }
-
-  return normalized;
-}
-
-function rejectEmptyCarUpdate(input: Record<string, unknown>, res: Response) {
-  if (Object.keys(input).length > 0) return true;
-  res.status(400).json({ message: "No valid car fields to update" });
-  return false;
-}
-
-function rejectEmptyTourUpdate(input: Record<string, unknown>, res: Response) {
-  if (Object.keys(input).length > 0) return true;
-  res.status(400).json({ message: "No valid tour fields to update" });
-  return false;
-}
-
 function jaccardScore(aTokens: string[], bTokens: string[]): number {
   if (aTokens.length === 0 || bTokens.length === 0) return 0;
   const aSet = new Set(aTokens);
@@ -831,9 +738,7 @@ app.post('/api/upload/image', requireAuth, upload.fields([{ name: 'image', maxCo
 
   app.put(api.tours.update.path, async (req, res) => {
     try {
-      const input = api.tours.update.input.parse(normalizeTourBody(req.body));
-      if (!rejectEmptyTourUpdate(input, res)) return;
-      
+      const input = api.tours.update.input.parse(req.body);
       const { attributeIds, ...tourData } = input;
       
       // Get current tour to check for image changes
@@ -912,9 +817,7 @@ app.post('/api/upload/image', requireAuth, upload.fields([{ name: 'image', maxCo
 
   app.put(api.cars.update.path, async (req, res) => {
     try {
-      const input = api.cars.update.input.parse(normalizeCarBody(req.body));
-      if (!rejectEmptyCarUpdate(input, res)) return;
-      
+      const input = api.cars.update.input.parse(req.body);
       const { attributeIds, ...carData } = input;
       
       // Get current car to check for image changes
