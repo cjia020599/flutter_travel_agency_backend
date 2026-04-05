@@ -1,5 +1,6 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import { eq, and, isNull, count, sum, avg, sql, desc } from "drizzle-orm";
+import * as schema from "@shared/schema";
 import { roles, users, vendorProfiles, tours, cars, locations, attributes, bookings, ratings, notifications } from "@shared/schema";
 import pg from "pg";
 
