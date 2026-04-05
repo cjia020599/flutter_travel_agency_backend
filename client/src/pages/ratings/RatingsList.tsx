@@ -20,6 +20,9 @@ export default function RatingsList({ moduleType, moduleId, moduleTitle }: Ratin
   const { data: ratings = [], isLoading } = useRatings(moduleType, moduleId);
   const deleteRating = useDeleteRating();
 
+  const userId = localStorage.getItem('userId');
+  const isOwner = (rating) => rating.userId === parseInt(userId || '0');
+
   const averageRating = ratings.length > 0 
     ? (ratings.reduce((sum, r) => sum + r.stars, 0) / ratings.length).toFixed(1)
     : 0;
@@ -83,22 +86,26 @@ export default function RatingsList({ moduleType, moduleId, moduleTitle }: Ratin
                   </div>
                 </div>
                 <div className="flex gap-1">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setEditingRating(rating)}
-                    className="size-8 p-0"
-                  >
-                    <Edit3 className="size-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleDelete(rating.id)}
-                    className="size-8 p-0"
-                  >
-                    <Trash2 className="size-4" />
-                  </Button>
+                  {isOwner(rating) && (
+                    <>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setEditingRating(rating)}
+                        className="size-8 p-0"
+                      >
+                        <Edit3 className="size-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleDelete(rating.id)}
+                        className="size-8 p-0"
+                      >
+                        <Trash2 className="size-4" />
+                      </Button>
+                    </>
+                  )}
                 </div>
               </div>
             </CardHeader>

@@ -16,16 +16,10 @@ export function useRatings(moduleType: 'car' | 'tour', moduleId: number) {
 }
 
 export function useUserRating(moduleType: 'car' | 'tour', moduleId: number) {
-  return useQuery({
-    queryKey: ['user-rating', moduleType, moduleId],
-    queryFn: async () => {
-      const ratings = await useRatings(moduleType, moduleId).refetch();
-      const userId = localStorage.getItem('userId'); // Assume stored after login
-      if (!userId) return null;
-      return ratings.data?.find(r => r.userId === parseInt(userId)) || null;
-    },
-    enabled: false, // Manual trigger
-  });
+  const { data: ratings = [] } = useRatings(moduleType, moduleId);
+  const userId = localStorage.getItem('userId');
+  const userRating = ratings.find(r => r.userId === parseInt(userId || '0')) || null;
+  return { data: userRating, isLoading: false }; // Simplified, since ratings loading covers it
 }
 
 export function useCreateRating() {

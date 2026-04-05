@@ -1249,13 +1249,8 @@ app.get('/api/reports/cars', requireAuth, async (req, res) => {
       const id = Number(req.params.id);
       const input = api.ratings.update.input.parse(req.body);
       
-      const rating = await storage.getUserRating(
-        (req as any).user.id,
-        req.body.moduleType as 'car' | 'tour', 
-        Number(req.body.moduleId)
-      );
-      
-      if (!rating || rating.id !== id) {
+      const rating = await storage.getRatingById(id);
+      if (!rating || rating.userId !== (req as any).user.id) {
         return res.status(404).json({ message: "Rating not found or unauthorized" });
       }
       
@@ -1275,13 +1270,8 @@ app.get('/api/reports/cars', requireAuth, async (req, res) => {
     try {
       const id = Number(req.params.id);
       
-      const rating = await storage.getUserRating(
-        (req as any).user.id,
-        req.body.moduleType as 'car' | 'tour', 
-        Number(req.body.moduleId)
-      );
-      
-      if (!rating || rating.id !== id) {
+      const rating = await storage.getRatingById(id);
+      if (!rating || rating.userId !== (req as any).user.id) {
         return res.status(404).json({ message: "Rating not found or unauthorized" });
       }
       

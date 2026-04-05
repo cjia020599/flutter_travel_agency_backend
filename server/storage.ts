@@ -14,7 +14,19 @@ export const storage = new (class DatabaseStorage {
     return db.select().from(roles);
   }
   async getRatings(moduleType: 'car' | 'tour', moduleId: number) {
-    return db.select().from(schema.ratings).where(
+    return db.select({
+      id: schema.ratings.id,
+      userId: schema.ratings.userId,
+      moduleType: schema.ratings.moduleType,
+      moduleId: schema.ratings.moduleId,
+      stars: schema.ratings.stars,
+      comment: schema.ratings.comment,
+      createdAt: schema.ratings.createdAt,
+      updatedAt: schema.ratings.updatedAt,
+      userName: schema.users.firstName,
+      userAvatar: schema.users.avatar,
+      userInitials: sql<string>`concat(substring(${schema.users.firstName}, 1, 1), substring(${schema.users.lastName}, 1, 1))`,
+    }).from(schema.ratings).innerJoin(schema.users, eq(schema.ratings.userId, schema.users.id)).where(
       and(
         eq(schema.ratings.moduleType, moduleType),
         eq(schema.ratings.moduleId, moduleId)
@@ -22,14 +34,8 @@ export const storage = new (class DatabaseStorage {
     ).orderBy(desc(schema.ratings.createdAt));
   }
 
-  async getUserRating(userId: number, moduleType: 'car' | 'tour', moduleId: number) {
-    const [r] = await db.select().from(schema.ratings).where(
-      and(
-        eq(schema.ratings.userId, userId),
-        eq(schema.ratings.moduleType, moduleType),
-        eq(schema.ratings.moduleId, moduleId)
-      )
-    );
+  async getRatingById(id: number) {
+    const [r] = await db.select().from(schema.ratings).where(eq(schema.ratings.id, id));
     return r;
   }
 
