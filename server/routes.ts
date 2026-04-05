@@ -97,6 +97,40 @@ function rejectEmptyProfileUpdate(input: Record<string, unknown>, res: Response)
   return false;
 }
 
+function normalizeUpdateBody(body: Record<string, unknown>) {
+  const normalized = { ...body };
+
+  for (const [key, value] of Object.entries(body)) {
+    if (!key.includes("_")) continue;
+    const camelKey = key.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
+    if (!(camelKey in normalized)) {
+      normalized[camelKey] = value;
+    }
+  }
+
+  return normalized;
+}
+
+function normalizeTourBody(body: Record<string, unknown>) {
+  return normalizeUpdateBody(body);
+}
+
+function normalizeCarBody(body: Record<string, unknown>) {
+  return normalizeUpdateBody(body);
+}
+
+function rejectEmptyTourUpdate(input: Record<string, unknown>, res: Response) {
+  if (Object.keys(input).length > 0) return true;
+  res.status(400).json({ message: "No valid tour fields to update" });
+  return false;
+}
+
+function rejectEmptyCarUpdate(input: Record<string, unknown>, res: Response) {
+  if (Object.keys(input).length > 0) return true;
+  res.status(400).json({ message: "No valid car fields to update" });
+  return false;
+}
+
 function jaccardScore(aTokens: string[], bTokens: string[]): number {
   if (aTokens.length === 0 || bTokens.length === 0) return 0;
   const aSet = new Set(aTokens);
