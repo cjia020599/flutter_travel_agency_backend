@@ -1,34 +1,46 @@
-# Fix Car/Tour Edit Issue (Backend Persistence)
-Status: ✅ Plan Approved - Implementing
+# Fix Render ReferenceError: createRatingInputSchema is not defined
 
-## Current Progress
-- [x] 1. Created detailed edit plan after full file analysis
-- [x] 2. Fix Zod schemas in shared/routes.ts (price → z.coerce.number())
-- [x] 3. Improve storage.updateCar/updateTour error handling + logging  
-- [x] 4. Add logging to PUT route handlers in server/routes.ts
-- [ ] 5. Test full edit flow (Network tab + DB verification + server logs)
-- [ ] 6. Clean up logging after verification
+## Status: [x] Created TODO  
+## Next: [ ] Step 1 - Fix storage.ts duplicates
 
-**Next**: Run `npm run dev`, edit car/tour, check console + Network tab
+### Step 1: Clean server/storage.ts duplicates [HIGH PRIORITY] ✅
+- Created server/storage-clean.ts without duplicates
+- Remove duplicate methods (getCarRentals, createCarRental, getTourBookings, createTourBooking, cancel*, reports ~lines 595-722)
+- Keep first implementation (~331-458)
 
-## Root Cause
-Frontend sends price as string ("45.00"), Zod allows string, Drizzle/DB expects decimal → silent constraint failure → unchanged data returned.
+**Step 1 complete** ✅ Clean storage-clean.ts created. Manual replace needed (Windows mv/cp failed).
 
-## Test Commands
-```bash
-# Check DB after edit
-psql -d travel_agency -c "SELECT id, title, price FROM cars WHERE id = 1;"
-psql -d travel_agency -c "SELECT id, title, price FROM tours WHERE id = 1;"
+**Step 2 complete** ✅
+- Clean build succeeded (no duplicate warnings)
+- `node dist/index.cjs` starts successfully **(DB error expected locally, but NO ReferenceError!)**
+- Production bundle works locally.
 
-# Server logs during edit
-npm run dev
-# Then edit car/tour → watch console for "PUT input:" / "Update result:"
-```
+**Next: [ ] Step 3 - Deploy fix to Render**
 
-## Success Criteria
-✅ Network PUT request succeeds (200)
-✅ Response contains NEW price/title values  
-✅ DB row reflects changes
-✅ Frontend shows updated list/profile
-✅ No Zod validation errors
+### Step 3: Deploy to Render
+1. Replace storage.ts with clean version
+2. Commit/push to trigger Render deploy
+3. Monitor Render build logs
 
+### Step 2: Test local production run
+\`\`\`bash
+npm run build && npm start
+\`\`\`
+- Verify \`node dist/index.cjs\` starts without ReferenceError
+- Test POST /api/ratings endpoint
+
+### Step 3: Fix import resolution for Render
+- Add \`shared/schema.ts\` to esbuild allowlist OR
+- Inline schemas in routes.ts temporarily
+
+### Step 4: DB Migration
+\`\`\`bash
+npx drizzle-kit generate:pg
+npx drizzle-kit push:pg
+\`\`\`
+
+### Step 5: Deploy & Test
+- Push → Render redeploys
+- Test ratings API
+
+### Step 6: Update TODO progress
