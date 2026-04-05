@@ -9,7 +9,7 @@ export const pool = new Pool({ connectionString: process.env.DATABASE_URL! });
 export const db = drizzle(pool, { schema });
 
 export const storage = new (class DatabaseStorage {
-  // All your methods here - paste the COMPLETE clean class body from storage-clean.ts
+// All your methods here - paste the COMPLETE clean class body from storage-clean.ts&#10;&#10;  async getRoles() {&#10;    return db.select().from(schema.roles);&#10;  }
   async getRatings(moduleType: 'car' | 'tour', moduleId: number) {
     return db.select().from(schema.ratings).where(
       and(
