@@ -15134,7 +15134,7 @@ var require_mimeScore = __commonJS({
 var require_mime_types = __commonJS({
   "node_modules/mime-types/index.js"(exports2) {
     "use strict";
-    var db2 = require_mime_db();
+    var db3 = require_mime_db();
     var extname = require("path").extname;
     var mimeScore = require_mimeScore();
     var EXTRACT_TYPE_REGEXP = /^\s*([^;\s]*)(?:;|\s|$)/;
@@ -15153,7 +15153,7 @@ var require_mime_types = __commonJS({
         return false;
       }
       var match = EXTRACT_TYPE_REGEXP.exec(type);
-      var mime = match && db2[match[1].toLowerCase()];
+      var mime = match && db3[match[1].toLowerCase()];
       if (mime && mime.charset) {
         return mime.charset;
       }
@@ -15198,8 +15198,8 @@ var require_mime_types = __commonJS({
       return exports2.types[extension2] || false;
     }
     function populateMaps(extensions, types) {
-      Object.keys(db2).forEach(function forEachMimeType(type) {
-        var mime = db2[type];
+      Object.keys(db3).forEach(function forEachMimeType(type) {
+        var mime = db3[type];
         var exts = mime.extensions;
         if (!exts || !exts.length) {
           return;
@@ -15220,14 +15220,14 @@ var require_mime_types = __commonJS({
       });
     }
     function _preferredType(ext, type0, type1) {
-      var score0 = type0 ? mimeScore(type0, db2[type0].source) : 0;
-      var score1 = type1 ? mimeScore(type1, db2[type1].source) : 0;
+      var score0 = type0 ? mimeScore(type0, db3[type0].source) : 0;
+      var score1 = type1 ? mimeScore(type1, db3[type1].source) : 0;
       return score0 > score1 ? type0 : type1;
     }
     function _preferredTypeLegacy(ext, type0, type1) {
       var SOURCE_RANK = ["nginx", "apache", void 0, "iana"];
-      var score0 = type0 ? SOURCE_RANK.indexOf(db2[type0].source) : 0;
-      var score1 = type1 ? SOURCE_RANK.indexOf(db2[type1].source) : 0;
+      var score0 = type0 ? SOURCE_RANK.indexOf(db3[type0].source) : 0;
+      var score1 = type1 ? SOURCE_RANK.indexOf(db3[type1].source) : 0;
       if (exports2.types[extension] !== "application/octet-stream" && (score0 > score1 || score0 === score1 && exports2.types[extension]?.slice(0, 12) === "application/")) {
         return type0;
       }
@@ -51577,7 +51577,7 @@ var require_mime_db2 = __commonJS({
 var require_mime_types2 = __commonJS({
   "node_modules/multer/node_modules/mime-types/index.js"(exports2) {
     "use strict";
-    var db2 = require_mime_db2();
+    var db3 = require_mime_db2();
     var extname = require("path").extname;
     var EXTRACT_TYPE_REGEXP = /^\s*([^;\s]*)(?:;|\s|$)/;
     var TEXT_TYPE_REGEXP = /^text\//i;
@@ -51594,7 +51594,7 @@ var require_mime_types2 = __commonJS({
         return false;
       }
       var match = EXTRACT_TYPE_REGEXP.exec(type);
-      var mime = match && db2[match[1].toLowerCase()];
+      var mime = match && db3[match[1].toLowerCase()];
       if (mime && mime.charset) {
         return mime.charset;
       }
@@ -51640,8 +51640,8 @@ var require_mime_types2 = __commonJS({
     }
     function populateMaps(extensions, types) {
       var preference = ["nginx", "apache", void 0, "iana"];
-      Object.keys(db2).forEach(function forEachMimeType(type) {
-        var mime = db2[type];
+      Object.keys(db3).forEach(function forEachMimeType(type) {
+        var mime = db3[type];
         var exts = mime.extensions;
         if (!exts || !exts.length) {
           return;
@@ -51650,7 +51650,7 @@ var require_mime_types2 = __commonJS({
         for (var i = 0; i < exts.length; i++) {
           var extension2 = exts[i];
           if (types[extension2]) {
-            var from = preference.indexOf(db2[types[extension2]].source);
+            var from = preference.indexOf(db3[types[extension2]].source);
             var to = preference.indexOf(mime.source);
             if (types[extension2] !== "application/octet-stream" && (from > to || from === to && types[extension2].substr(0, 12) === "application/")) {
               continue;
@@ -61504,62 +61504,15 @@ var bcryptjs_default = {
 // server/routes.ts
 var import_zod4 = require("zod");
 
-// server/db.ts
+// server/storage.ts
 var import_node_postgres = require("drizzle-orm/node-postgres");
+var import_drizzle_orm2 = require("drizzle-orm");
 var import_pg = __toESM(require("pg"));
 var { Pool } = import_pg.default;
-if (!process.env.DATABASE_URL) {
-  throw new Error(
-    "DATABASE_URL must be set. Did you forget to provision a database?"
-  );
-}
 var pool = new Pool({ connectionString: process.env.DATABASE_URL });
 var db = (0, import_node_postgres.drizzle)(pool, { schema: schema_exports });
-
-// server/storage.ts
-var import_drizzle_orm2 = require("drizzle-orm");
-var DatabaseStorage = class {
-  async getUserNotifications(userId, opts) {
-    const offset = (opts.page - 1) * opts.limit;
-    let query = db.select().from(notifications).where((0, import_drizzle_orm2.eq)(notifications.userId, userId)).orderBy((0, import_drizzle_orm2.desc)(notifications.createdAt)).limit(opts.limit).offset(offset);
-    if (opts.unreadOnly) {
-      query = query.where((0, import_drizzle_orm2.isNull)(notifications.readAt));
-    }
-    return await query;
-  }
-  async createNotification(data) {
-    const [notification] = await db.insert(notifications).values({
-      ...data,
-      readAt: null
-    }).returning();
-    return notification;
-  }
-  async markNotificationRead(id) {
-    const [notification] = await db.update(notifications).set({ readAt: /* @__PURE__ */ new Date() }).where((0, import_drizzle_orm2.eq)(notifications.id, id)).returning();
-    return notification;
-  }
-  // ---- Chatbot ----
-  async getChatbotQuestions() {
-    return db.select().from(chatbotQuestions).orderBy((0, import_drizzle_orm2.desc)(chatbotQuestions.createdAt));
-  }
-  async getActiveChatbotQuestions() {
-    return db.select().from(chatbotQuestions).where((0, import_drizzle_orm2.eq)(chatbotQuestions.active, true));
-  }
-  async createChatbotQuestion(data) {
-    const [r] = await db.insert(chatbotQuestions).values(data).returning();
-    return r;
-  }
-  async updateChatbotQuestion(id, updates) {
-    const [r] = await db.update(chatbotQuestions).set({
-      ...updates,
-      updatedAt: /* @__PURE__ */ new Date()
-    }).where((0, import_drizzle_orm2.eq)(chatbotQuestions.id, id)).returning();
-    return r;
-  }
-  async deleteChatbotQuestion(id) {
-    await db.delete(chatbotQuestions).where((0, import_drizzle_orm2.eq)(chatbotQuestions.id, id));
-  }
-  // ---- Ratings ----
+var storage = new class DatabaseStorage {
+  // All your methods here - paste the COMPLETE clean class body from storage-clean.ts
   async getRatings(moduleType, moduleId) {
     return db.select().from(ratings).where(
       (0, import_drizzle_orm2.and)(
@@ -61593,474 +61546,8 @@ var DatabaseStorage = class {
   async deleteRating(id) {
     await db.delete(ratings).where((0, import_drizzle_orm2.eq)(ratings.id, id));
   }
-  // ---- Tours ----
-  async getTours() {
-    return db.select().from(tours);
-  }
-  async getTour(id) {
-    const [r] = await db.select().from(tours).where((0, import_drizzle_orm2.eq)(tours.id, id));
-    return r;
-  }
-  async createTour(tour) {
-    const [r] = await db.insert(tours).values(tour).returning();
-    return r;
-  }
-  async updateTour(id, updates) {
-    console.log("STORAGE updateTour id:", id, "updates:", updates);
-    const [r] = await db.update(tours).set(updates).where((0, import_drizzle_orm2.eq)(tours.id, id)).returning();
-    if (!r) {
-      console.error("updateTour failed - no rows affected for id:", id);
-      throw new Error(`Failed to update tour ${id} - no rows matched`);
-    }
-    console.log("STORAGE updateTour success:", r.id);
-    return r;
-  }
-  async deleteTour(id) {
-    await db.update(tours).set({ deletedAt: /* @__PURE__ */ new Date() }).where((0, import_drizzle_orm2.eq)(tours.id, id));
-  }
-  // ---- Cars ----
-  async getCars() {
-    return db.select().from(cars);
-  }
-  async getCar(id) {
-    const [r] = await db.select().from(cars).where((0, import_drizzle_orm2.eq)(cars.id, id));
-    return r;
-  }
-  async createCar(car) {
-    const [r] = await db.insert(cars).values(car).returning();
-    return r;
-  }
-  async updateCar(id, updates) {
-    console.log("STORAGE updateCar id:", id, "updates:", updates);
-    const [r] = await db.update(cars).set(updates).where((0, import_drizzle_orm2.eq)(cars.id, id)).returning();
-    if (!r) {
-      console.error("updateCar failed - no rows affected for id:", id);
-      throw new Error(`Failed to update car ${id} - no rows matched`);
-    }
-    console.log("STORAGE updateCar success:", r.id);
-    return r;
-  }
-  async deleteCar(id) {
-    await db.update(cars).set({ deletedAt: /* @__PURE__ */ new Date() }).where((0, import_drizzle_orm2.eq)(cars.id, id));
-  }
-  // ---- Lookups ----
-  async getLocations() {
-    return db.select().from(locations);
-  }
-  async getAttributes() {
-    return db.select().from(attributes);
-  }
-  // ---- Users ----
-  async buildAuthUser(user) {
-    const [role] = await db.select().from(roles).where((0, import_drizzle_orm2.eq)(roles.id, user.roleId));
-    const vendor = await this.getVendorByUserId(user.id);
-    return {
-      id: user.id,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      username: user.username,
-      email: user.email,
-      phone: user.phone,
-      birthday: user.birthday,
-      avatar: user.avatar,
-      bio: user.bio,
-      addressLine1: user.addressLine1,
-      addressLine2: user.addressLine2,
-      city: user.city,
-      state: user.state,
-      country: user.country,
-      zipCode: user.zipCode,
-      roleId: user.roleId,
-      roleName: role?.name ?? "Customer",
-      roleCode: role?.code ?? "customer",
-      vendorProfile: vendor ?? null
-    };
-  }
-  async getUserById(id) {
-    const [user] = await db.select().from(users).where((0, import_drizzle_orm2.eq)(users.id, id));
-    if (!user) return void 0;
-    return this.buildAuthUser(user);
-  }
-  async getRawUser(id) {
-    const [r] = await db.select().from(users).where((0, import_drizzle_orm2.eq)(users.id, id));
-    return r;
-  }
-  async getUserByEmail(email) {
-    const [r] = await db.select().from(users).where((0, import_drizzle_orm2.eq)(users.email, email));
-    return r;
-  }
-  async getUserByUsername(username) {
-    const [r] = await db.select().from(users).where((0, import_drizzle_orm2.eq)(users.username, username));
-    return r;
-  }
-  async createUser(user) {
-    const [r] = await db.insert(users).values(user).returning();
-    return r;
-  }
-  async updateUser(id, updates) {
-    await db.update(users).set(updates).where((0, import_drizzle_orm2.eq)(users.id, id));
-    return this.getUserById(id);
-  }
-  async getUsers() {
-    const all = await db.select().from(users);
-    return Promise.all(all.map((u) => this.buildAuthUser(u)));
-  }
-  async deleteUser(id) {
-    await db.delete(users).where((0, import_drizzle_orm2.eq)(users.id, id));
-  }
-  // ---- Vendor ----
-  async createVendorProfile(profile) {
-    const [r] = await db.insert(vendorProfiles).values(profile).returning();
-    return r;
-  }
-  async getVendorByUserId(userId) {
-    const [r] = await db.select().from(vendorProfiles).where((0, import_drizzle_orm2.eq)(vendorProfiles.userId, userId));
-    return r;
-  }
-  // ---- Roles ----
-  async getRoles() {
-    return db.select().from(roles);
-  }
-  async getRoleByCode(code) {
-    const [r] = await db.select().from(roles).where((0, import_drizzle_orm2.eq)(roles.code, code));
-    return r;
-  }
-  // ---- Car Rentals ----
-  async getCarRentals(filters) {
-    const query = db.select({
-      id: bookings.id,
-      userId: bookings.userId,
-      moduleType: bookings.moduleType,
-      moduleId: bookings.moduleId,
-      startDate: bookings.startDate,
-      endDate: bookings.endDate,
-      status: bookings.status,
-      car: cars.id,
-      carTitle: cars.title,
-      carPrice: cars.price,
-      carImageUrl: cars.imageUrl,
-      carLocationId: cars.locationId,
-      user: users.id,
-      userFirstName: users.firstName,
-      userLastName: users.lastName,
-      userEmail: users.email
-    }).from(bookings).leftJoin(cars, (0, import_drizzle_orm2.eq)(bookings.moduleId, cars.id)).leftJoin(users, (0, import_drizzle_orm2.eq)(bookings.userId, users.id)).where(
-      (0, import_drizzle_orm2.and)(
-        (0, import_drizzle_orm2.eq)(bookings.moduleType, "car"),
-        (0, import_drizzle_orm2.isNull)(cars.deletedAt),
-        filters?.userId ? (0, import_drizzle_orm2.eq)(bookings.userId, filters.userId) : import_drizzle_orm2.sql`true`
-      )
-    );
-    const results = await query;
-    return results.map((r) => ({
-      id: r.id,
-      userId: r.userId,
-      moduleType: r.moduleType,
-      moduleId: r.moduleId,
-      startDate: r.startDate,
-      endDate: r.endDate,
-      status: r.status,
-      buyerName: null,
-      buyerEmail: null,
-      buyerPhone: null,
-      car: {
-        id: r.car,
-        title: r.carTitle,
-        price: r.carPrice,
-        imageUrl: r.carImageUrl,
-        locationId: r.carLocationId
-      },
-      user: {
-        id: r.user,
-        firstName: r.userFirstName,
-        lastName: r.userLastName,
-        email: r.userEmail
-      }
-    }));
-  }
-  async createCarRental(rental) {
-    const [result] = await db.insert(bookings).values(rental).returning();
-    return result;
-  }
-  async cancelCarRental(id) {
-    await db.update(bookings).set({ status: "cancelled" }).where((0, import_drizzle_orm2.eq)(bookings.id, id));
-  }
-  // ---- Tour Bookings ----
-  async getTourBookings(filters) {
-    const query = db.select({
-      id: bookings.id,
-      userId: bookings.userId,
-      moduleType: bookings.moduleType,
-      moduleId: bookings.moduleId,
-      startDate: bookings.startDate,
-      endDate: bookings.endDate,
-      status: bookings.status,
-      buyerName: bookings.buyerName,
-      buyerEmail: bookings.buyerEmail,
-      buyerPhone: bookings.buyerPhone,
-      tour: tours.id,
-      tourTitle: tours.title,
-      tourPrice: tours.price,
-      tourImageUrl: tours.imageUrl,
-      tourLocationId: tours.locationId,
-      user: users.id,
-      userFirstName: users.firstName,
-      userLastName: users.lastName,
-      userEmail: users.email
-    }).from(bookings).leftJoin(tours, (0, import_drizzle_orm2.eq)(bookings.moduleId, tours.id)).leftJoin(users, (0, import_drizzle_orm2.eq)(bookings.userId, users.id)).where(
-      (0, import_drizzle_orm2.and)(
-        (0, import_drizzle_orm2.eq)(bookings.moduleType, "tour"),
-        (0, import_drizzle_orm2.isNull)(tours.deletedAt),
-        filters?.userId ? (0, import_drizzle_orm2.eq)(bookings.userId, filters.userId) : import_drizzle_orm2.sql`true`
-      )
-    );
-    const results = await query;
-    return results.map((r) => ({
-      ...r,
-      tour: {
-        id: r.tour,
-        title: r.tourTitle,
-        price: r.tourPrice,
-        imageUrl: r.tourImageUrl,
-        locationId: r.tourLocationId
-      },
-      user: {
-        id: r.user,
-        firstName: r.userFirstName,
-        lastName: r.userLastName,
-        email: r.userEmail
-      }
-    }));
-  }
-  async createTourBooking(booking) {
-    const [result] = await db.insert(bookings).values(booking).returning();
-    return result;
-  }
-  async cancelTourBooking(id) {
-    await db.update(bookings).set({ status: "cancelled" }).where((0, import_drizzle_orm2.eq)(bookings.id, id));
-  }
-  // ---- Reports ----
-  async getTourSummary(filters) {
-    let query = db.select({
-      status: tours.status,
-      count: (0, import_drizzle_orm2.count)(),
-      avgPrice: (0, import_drizzle_orm2.avg)(tours.price)
-    }).from(tours).where((0, import_drizzle_orm2.isNull)(tours.deletedAt));
-    if (filters?.vendorId) {
-      query = query.where((0, import_drizzle_orm2.eq)(tours.authorId, filters.vendorId));
-    }
-    if (filters?.status) {
-      query = query.where((0, import_drizzle_orm2.eq)(tours.status, filters.status));
-    }
-    if (filters?.locationId) {
-      query = query.where((0, import_drizzle_orm2.eq)(tours.locationId, filters.locationId));
-    }
-    query = query.groupBy(tours.status);
-    const results = await query;
-    return results.map((r) => ({
-      status: r.status || "unknown",
-      count: Number(r.count),
-      avgPrice: parseFloat(r.avgPrice || "0")
-    }));
-  }
-  async getCarSummary(filters) {
-    let query = db.select({
-      status: cars.status,
-      count: (0, import_drizzle_orm2.count)(),
-      avgPrice: (0, import_drizzle_orm2.avg)(cars.price),
-      avgPassenger: (0, import_drizzle_orm2.avg)(cars.passenger)
-    }).from(cars).where((0, import_drizzle_orm2.isNull)(cars.deletedAt));
-    if (filters?.vendorId) {
-      query = query.where((0, import_drizzle_orm2.eq)(cars.authorId, filters.vendorId));
-    }
-    if (filters?.status) {
-      query = query.where((0, import_drizzle_orm2.eq)(cars.status, filters.status));
-    }
-    if (filters?.locationId) {
-      query = query.where((0, import_drizzle_orm2.eq)(cars.locationId, filters.locationId));
-    }
-    query = query.groupBy(cars.status);
-    const results = await query;
-    return results.map((r) => ({
-      status: r.status || "unknown",
-      count: Number(r.count),
-      avgPrice: parseFloat(r.avgPrice || "0"),
-      avgPassenger: parseFloat(r.avgPassenger || "0")
-    }));
-  }
-  async getBookingStats(filters) {
-    try {
-      const totalQuery = await db.select({ count: (0, import_drizzle_orm2.count)() }).from(bookings);
-      const confirmedQuery = await db.select({ count: (0, import_drizzle_orm2.count)() }).from(bookings).where((0, import_drizzle_orm2.eq)(bookings.status, "confirmed"));
-      const cancelledQuery = await db.select({ count: (0, import_drizzle_orm2.count)() }).from(bookings).where((0, import_drizzle_orm2.eq)(bookings.status, "cancelled"));
-      const tourStats = await db.select({
-        count: (0, import_drizzle_orm2.count)(),
-        revenue: (0, import_drizzle_orm2.sum)(import_drizzle_orm2.sql`t."price"::numeric`)
-      }).from(bookings).leftJoin(tours, (0, import_drizzle_orm2.eq)(bookings.moduleId, tours.id)).where((0, import_drizzle_orm2.eq)(bookings.moduleType, "tour"));
-      const carStats = await db.select({
-        count: (0, import_drizzle_orm2.count)(),
-        revenue: (0, import_drizzle_orm2.sum)(import_drizzle_orm2.sql`c."price"::numeric`)
-      }).from(bookings).leftJoin(cars, (0, import_drizzle_orm2.eq)(bookings.moduleId, cars.id)).where((0, import_drizzle_orm2.eq)(bookings.moduleType, "car"));
-      return {
-        totalBookings: Number(totalQuery[0]?.count || 0),
-        totalRevenue: 0,
-        confirmed: Number(confirmedQuery[0]?.count || 0),
-        cancelled: Number(cancelledQuery[0]?.count || 0),
-        byModuleType: [
-          { type: "tour", count: Number(tourStats[0]?.count || 0), revenue: 0 },
-          { type: "car", count: Number(carStats[0]?.count || 0), revenue: 0 }
-        ]
-      };
-    } catch (error) {
-      console.error("Booking stats error:", error);
-      return {
-        totalBookings: 0,
-        totalRevenue: 0,
-        confirmed: 0,
-        cancelled: 0,
-        byModuleType: []
-      };
-    }
-  }
-  async getLocationStats(filters) {
-    try {
-      const query = await db.select({
-        id: locations.id,
-        name: locations.name,
-        tours: (0, import_drizzle_orm2.count)(tours.id).as("tours"),
-        cars: (0, import_drizzle_orm2.count)(cars.id).as("cars"),
-        bookings: (0, import_drizzle_orm2.count)().as("bookings"),
-        revenue: import_drizzle_orm2.sql`0`.as("revenue")
-      }).from(locations).leftJoin(tours, (0, import_drizzle_orm2.eq)(locations.id, tours.locationId)).leftJoin(cars, (0, import_drizzle_orm2.eq)(locations.id, cars.locationId)).where((0, import_drizzle_orm2.isNull)(locations.deletedAt)).groupBy(locations.id, locations.name);
-      return (await query).map((r) => ({
-        id: Number(r.id),
-        name: r.name || "",
-        tours: Number(r.tours || 0),
-        cars: Number(r.cars || 0),
-        bookings: Number(r.bookings || 0),
-        revenue: 0
-      }));
-    } catch (error) {
-      console.error("Location stats error:", error);
-      return [];
-    }
-  }
-  // ---- Car Rentals ----
-  async getCarRentals(filters) {
-    const query = db.select({
-      id: bookings.id,
-      userId: bookings.userId,
-      moduleType: bookings.moduleType,
-      moduleId: bookings.moduleId,
-      startDate: bookings.startDate,
-      endDate: bookings.endDate,
-      status: bookings.status,
-      car: cars.id,
-      carTitle: cars.title,
-      carPrice: cars.price,
-      carImageUrl: cars.imageUrl,
-      carLocationId: cars.locationId,
-      user: users.id,
-      userFirstName: users.firstName,
-      userLastName: users.lastName,
-      userEmail: users.email
-    }).from(bookings).leftJoin(cars, (0, import_drizzle_orm2.eq)(bookings.moduleId, cars.id)).leftJoin(users, (0, import_drizzle_orm2.eq)(bookings.userId, users.id)).where(
-      (0, import_drizzle_orm2.and)(
-        (0, import_drizzle_orm2.eq)(bookings.moduleType, "car"),
-        (0, import_drizzle_orm2.isNull)(cars.deletedAt),
-        filters?.userId ? (0, import_drizzle_orm2.eq)(bookings.userId, filters.userId) : import_drizzle_orm2.sql`true`
-      )
-    );
-    const results = await query;
-    return results.map((r) => ({
-      id: r.id,
-      userId: r.userId,
-      moduleType: r.moduleType,
-      moduleId: r.moduleId,
-      startDate: r.startDate,
-      endDate: r.endDate,
-      status: r.status,
-      buyerName: null,
-      buyerEmail: null,
-      buyerPhone: null,
-      car: {
-        id: r.car,
-        title: r.carTitle,
-        price: r.carPrice,
-        imageUrl: r.carImageUrl,
-        locationId: r.carLocationId
-      },
-      user: {
-        id: r.user,
-        firstName: r.userFirstName,
-        lastName: r.userLastName,
-        email: r.userEmail
-      }
-    }));
-  }
-  async createCarRental(rental) {
-    const [result] = await db.insert(bookings).values(rental).returning();
-    return result;
-  }
-  async cancelCarRental(id) {
-    await db.update(bookings).set({ status: "cancelled" }).where((0, import_drizzle_orm2.eq)(bookings.id, id));
-  }
-  // ---- Tour Bookings ----
-  async getTourBookings(filters) {
-    const query = db.select({
-      id: bookings.id,
-      userId: bookings.userId,
-      moduleType: bookings.moduleType,
-      moduleId: bookings.moduleId,
-      startDate: bookings.startDate,
-      endDate: bookings.endDate,
-      status: bookings.status,
-      buyerName: bookings.buyerName,
-      buyerEmail: bookings.buyerEmail,
-      buyerPhone: bookings.buyerPhone,
-      tour: tours.id,
-      tourTitle: tours.title,
-      tourPrice: tours.price,
-      tourImageUrl: tours.imageUrl,
-      tourLocationId: tours.locationId,
-      user: users.id,
-      userFirstName: users.firstName,
-      userLastName: users.lastName,
-      userEmail: users.email
-    }).from(bookings).leftJoin(tours, (0, import_drizzle_orm2.eq)(bookings.moduleId, tours.id)).leftJoin(users, (0, import_drizzle_orm2.eq)(bookings.userId, users.id)).where(
-      (0, import_drizzle_orm2.and)(
-        (0, import_drizzle_orm2.eq)(bookings.moduleType, "tour"),
-        (0, import_drizzle_orm2.isNull)(tours.deletedAt),
-        filters?.userId ? (0, import_drizzle_orm2.eq)(bookings.userId, filters.userId) : import_drizzle_orm2.sql`true`
-      )
-    );
-    const results = await query;
-    return results.map((r) => ({
-      ...r,
-      tour: {
-        id: r.tour,
-        title: r.tourTitle,
-        price: r.tourPrice,
-        imageUrl: r.tourImageUrl,
-        locationId: r.tourLocationId
-      },
-      user: {
-        id: r.user,
-        firstName: r.userFirstName,
-        lastName: r.userLastName,
-        email: r.userEmail
-      }
-    }));
-  }
-  async createTourBooking(booking) {
-    const [result] = await db.insert(bookings).values(booking).returning();
-    return result;
-  }
-  async cancelTourBooking(id) {
-    await db.update(bookings).set({ status: "cancelled" }).where((0, import_drizzle_orm2.eq)(bookings.id, id));
-  }
-};
-var storage = new DatabaseStorage();
+  // Add other methods as needed...
+}();
 
 // shared/routes.ts
 var import_zod3 = require("zod");
@@ -62444,9 +61931,35 @@ async function requireAdmin(req, res, next) {
 
 // server/routes.ts
 var import_drizzle_orm3 = require("drizzle-orm");
+
+// server/db.ts
+var import_node_postgres2 = require("drizzle-orm/node-postgres");
+var import_pg2 = __toESM(require("pg"));
+var { Pool: Pool2 } = import_pg2.default;
+if (!process.env.DATABASE_URL) {
+  throw new Error(
+    "DATABASE_URL must be set. Did you forget to provision a database?"
+  );
+}
+var pool2 = new Pool2({ connectionString: process.env.DATABASE_URL });
+var db2 = (0, import_node_postgres2.drizzle)(pool2, { schema: schema_exports });
+
+// server/routes.ts
 var import_cloudinary = __toESM(require_cloudinary2());
 var import_multer = __toESM(require_multer());
 var import_fs = __toESM(require("fs"));
+var createRatingInputSchema3 = import_zod4.z.object({
+  moduleType: import_zod4.z.enum(["car", "tour"]),
+  moduleId: import_zod4.z.coerce.number().int().positive(),
+  stars: import_zod4.z.coerce.number().int().min(1).max(5),
+  comment: import_zod4.z.string().trim().min(1).max(2e3).optional()
+});
+var updateRatingInputSchema3 = import_zod4.z.object({
+  stars: import_zod4.z.coerce.number().int().min(1).max(5).optional(),
+  comment: import_zod4.z.string().trim().min(1).max(2e3).optional()
+}).refine((data) => data.stars !== void 0 || data.comment !== void 0, {
+  message: "At least one field (stars or comment) is required"
+});
 var upload = (0, import_multer.default)({ dest: "uploads/" });
 function extractPublicId(url) {
   if (!url || !url.includes("cloudinary.com")) return null;
@@ -62798,7 +62311,7 @@ async function fetchSuggestions(intent, count2, moduleType, exclude, locationId)
   let toursList = [];
   let carsList = [];
   if (moduleType !== "car") {
-    const tourRows = await db.select({
+    const tourRows = await db2.select({
       id: tours.id,
       title: tours.title,
       price: tours.price,
@@ -62823,7 +62336,7 @@ async function fetchSuggestions(intent, count2, moduleType, exclude, locationId)
     }));
   }
   if (moduleType !== "tour") {
-    const carRows = await db.select({
+    const carRows = await db2.select({
       id: cars.id,
       title: cars.title,
       price: cars.price,
@@ -62882,7 +62395,7 @@ async function resolveLocationIdForUser(user) {
   const candidates = [user.city, user.country].map((v) => v ? String(v).trim() : "").filter(Boolean);
   for (const name of candidates) {
     const lower = name.toLowerCase();
-    const rows = await db.select({ id: locations.id }).from(locations).where((0, import_drizzle_orm3.and)(import_drizzle_orm3.sql`lower(${locations.name}) = ${lower}`, (0, import_drizzle_orm3.isNull)(locations.deletedAt))).limit(1);
+    const rows = await db2.select({ id: locations.id }).from(locations).where((0, import_drizzle_orm3.and)(import_drizzle_orm3.sql`lower(${locations.name}) = ${lower}`, (0, import_drizzle_orm3.isNull)(locations.deletedAt))).limit(1);
     if (rows.length > 0) return rows[0].id;
   }
   return null;
@@ -63110,7 +62623,7 @@ async function registerRoutes(httpServer2, app2) {
       });
       if (attributeIds && attributeIds.length > 0) {
         const values = attributeIds.map((attrId) => ({ tourId: tour.id, attributeId: attrId }));
-        await db.insert(tourAttributes).values(values);
+        await db2.insert(tourAttributes).values(values);
       }
       res.status(201).json(tour);
     } catch (e) {
@@ -63137,10 +62650,10 @@ async function registerRoutes(httpServer2, app2) {
       console.log("ROUTES updateTour result:", tour);
       if (!tour) return res.status(404).json({ message: "Not found" });
       if (attributeIds !== void 0) {
-        await db.delete(tourAttributes).where((0, import_drizzle_orm3.eq)(tourAttributes.tourId, tour.id));
+        await db2.delete(tourAttributes).where((0, import_drizzle_orm3.eq)(tourAttributes.tourId, tour.id));
         if (attributeIds.length > 0) {
           const values = attributeIds.map((attrId) => ({ tourId: tour.id, attributeId: attrId }));
-          await db.insert(tourAttributes).values(values);
+          await db2.insert(tourAttributes).values(values);
         }
       }
       res.json(tour);
@@ -63180,7 +62693,7 @@ async function registerRoutes(httpServer2, app2) {
       });
       if (attributeIds && attributeIds.length > 0) {
         const values = attributeIds.map((attrId) => ({ carId: car.id, attributeId: attrId }));
-        await db.insert(carAttributes).values(values);
+        await db2.insert(carAttributes).values(values);
       }
       res.status(201).json(car);
     } catch (e) {
@@ -63207,10 +62720,10 @@ async function registerRoutes(httpServer2, app2) {
       console.log("ROUTES updateCar result:", car);
       if (!car) return res.status(404).json({ message: "Not found" });
       if (attributeIds !== void 0) {
-        await db.delete(carAttributes).where((0, import_drizzle_orm3.eq)(carAttributes.carId, car.id));
+        await db2.delete(carAttributes).where((0, import_drizzle_orm3.eq)(carAttributes.carId, car.id));
         if (attributeIds.length > 0) {
           const values = attributeIds.map((attrId) => ({ carId: car.id, attributeId: attrId }));
-          await db.insert(carAttributes).values(values);
+          await db2.insert(carAttributes).values(values);
         }
       }
       res.json(car);
@@ -63374,7 +62887,7 @@ async function registerRoutes(httpServer2, app2) {
   });
   app2.delete(api.tourBookings.delete.path, requireAuth, async (req, res) => {
     const bookingId = Number(req.params.id);
-    const booking = await db.select().from(bookings).where((0, import_drizzle_orm3.eq)(bookings.id, bookingId)).limit(1);
+    const booking = await db2.select().from(bookings).where((0, import_drizzle_orm3.eq)(bookings.id, bookingId)).limit(1);
     if (booking.length === 0 || booking[0].status === "cancelled") {
       return res.status(404).json({ message: "Booking not found" });
     }
@@ -63437,7 +62950,7 @@ async function registerRoutes(httpServer2, app2) {
   });
   app2.delete(api.carRentals.delete.path, requireAuth, async (req, res) => {
     const rentalId = Number(req.params.id);
-    const rental = await db.select().from(bookings).where((0, import_drizzle_orm3.eq)(bookings.id, rentalId)).limit(1);
+    const rental = await db2.select().from(bookings).where((0, import_drizzle_orm3.eq)(bookings.id, rentalId)).limit(1);
     if (rental.length === 0 || rental[0].status === "cancelled") {
       return res.status(404).json({ message: "Rental not found" });
     }
@@ -63798,7 +63311,7 @@ ${formatSuggestionList(split.cars)}` : ""
     try {
       const existingRoles = await storage.getRoles();
       if (existingRoles.length === 0) {
-        await db.insert(roles).values([
+        await db2.insert(roles).values([
           { name: "Administrator", code: "administrator" },
           { name: "Vendor", code: "vendor" },
           { name: "Customer", code: "customer" }
@@ -63806,22 +63319,22 @@ ${formatSuggestionList(split.cars)}` : ""
       }
       const existingLocs = await storage.getLocations();
       if (existingLocs.length === 0) {
-        await db.insert(locations).values([
+        await db2.insert(locations).values([
           { name: "Paris", slug: "paris" },
           { name: "London", slug: "london" },
           { name: "Tokyo", slug: "tokyo" }
         ]);
-        await db.insert(attributes).values([
+        await db2.insert(attributes).values([
           { name: "Luxury", type: "Travel Style" },
           { name: "Budget", type: "Travel Style" },
           { name: "Air Conditioning", type: "Car Feature" },
           { name: "GPS", type: "Car Feature" }
         ]);
-        await db.insert(tours).values([
+        await db2.insert(tours).values([
           { title: "Eiffel Tower Tour", slug: "eiffel-tower-tour", price: "49.99", salePrice: "39.99", status: "publish" },
           { title: "London Eye VIP", slug: "london-eye-vip", price: "89.99", status: "publish", isFeatured: true }
         ]);
-        await db.insert(cars).values([
+        await db2.insert(cars).values([
           { title: "Toyota Corolla", slug: "toyota-corolla", price: "45.00", passenger: 5, gearShift: "Auto", baggage: 2, door: 4, status: "publish" },
           { title: "Mercedes S-Class", slug: "mercedes-s-class", price: "120.00", passenger: 4, gearShift: "Auto", baggage: 3, door: 4, status: "publish", isFeatured: true }
         ]);
