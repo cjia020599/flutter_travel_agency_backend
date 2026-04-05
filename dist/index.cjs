@@ -65569,7 +65569,7 @@ var { Pool } = import_pg.default;
 var pool = new Pool({ connectionString: process.env.DATABASE_URL });
 var db = (0, import_node_postgres.drizzle)(pool, { schema: schema_exports });
 var storage = new class DatabaseStorage {
-  // All your methods here - paste the COMPLETE clean class body from storage-clean.ts
+  // All your methods here - paste the COMPLETE clean class body from storage-clean.ts&#10;&#10;  async getRoles() {&#10;    return db.select().from(schema.roles);&#10;  }
   async getRatings(moduleType, moduleId) {
     return db.select().from(ratings).where(
       (0, import_drizzle_orm2.and)(
