@@ -18,22 +18,14 @@ import{
   chatbotAskInputSchema,
 } from "@shared/schema";
 
-const createRatingInputSchema = z.object({
-  moduleType: z.enum(["car", "tour"]),
-  moduleId: z.coerce.number().int().positive(),
-  stars: z.coerce.number().int().min(1).max(5),
-  comment: z.string().trim().min(1).max(2000).optional(),
-});
-
-const updateRatingInputSchema = z.object({
-  stars: z.coerce.number().int().min(1).max(5).optional(),
-  comment: z.string().trim().min(1).max(2000).optional(),
-}).refine((data) => data.stars !== undefined || data.comment !== undefined, {
-  message: "At least one field (stars or comment) is required",
-});
-
-
-import { signToken, requireAuth, requireAdmin } from "./auth";
+import { 
+  createRatingInputSchema, 
+  updateRatingInputSchema,
+  signToken, 
+  requireAuth, 
+  requireAdmin 
+} from "@shared/schema";
+import { eq, and, isNull, desc, sql } from "drizzle-orm";
 import { eq, and, isNull, desc, sql } from "drizzle-orm";
 
 
