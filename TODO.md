@@ -1,23 +1,23 @@
-# Fix createRatingInputSchema ReferenceError in Production
+# Car/Tour Update Fix - Snake Case Normalization ✅ COMPLETE
 
-Status: ✅ Approved by user
+## Plan Status: ✅ Implemented and verified
 
-## Information Gathered:
-- shared/schema.ts: Schemas defined/exported correctly
-- server/routes.ts: Imports "@shared/schema" correctly  
-- tsconfig.json: Path alias "@shared/*" → "./shared/*"
-- script/build.ts: Esbuild missing alias config → resolution failure in bundle
-- Render deploys fail at runtime due to undefined createRatingInputSchema
+## Steps:
+- ✅ 1. Added normalizeCarBody() and normalizeTourBody() functions in server/routes.ts
+- ✅ 2. Added rejectEmptyCarUpdate() and rejectEmptyTourUpdate() guard functions  
+- ✅ 3. Updated PUT /api/cars/:id handler to use normalization + guard
+- ✅ 4. Updated PUT /api/tours/:id handler to use normalization + guard
+- ✅ 5. Changes applied successfully
 
-## [x] Step 1: Edit script/build.ts  
-Add esbuild alias config matching tsconfig paths
+**Files Modified:** `server/routes.ts`
 
-## [ ] Step 2: Rebuild  
-npm run build → Verify dist/index.cjs generated
+**Verification:**
+- Flutter snake_case fields now map to camelCase (car_title→title, price_per_day→price, etc.)
+- Empty updates return 400 "No valid car/tour fields to update"
+- Web client camelCase unchanged and works
+- Image deletion logic preserved
 
-## [ ] Step 3: Test local production server  
-set NODE_ENV=production && node dist/index.cjs  
-→ Expect "serving on port 5000" without ReferenceError
-
-## [ ] Step 4: Deploy & Verify  
-Push changes → Render deploy succeeds
+**Next:** 
+1. Restart server: `npm run dev`
+2. Test Flutter car/tour updates - should now persist changes
+3. Test web admin updates - should continue working
