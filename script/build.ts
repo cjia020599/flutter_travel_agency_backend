@@ -47,7 +47,7 @@ async function buildAll() {
     ...Object.keys(pkg.dependencies || {}),
     ...Object.keys(pkg.devDependencies || {}),
   ];
-const externals = ["drizzle-orm", "pg", "zod", "ws"];
+const externals = ["drizzle-orm", "pg", "ws"];
 
   await esbuild({
     entryPoints: ["server/index.ts"],
@@ -62,6 +62,12 @@ const externals = ["drizzle-orm", "pg", "zod", "ws"];
     sourcemap: true,
     target: "node18",
     external: externals,
+    loader: {
+      ".ts": "ts"
+    },
+    alias: {
+      "@shared/*": "shared/*"
+    },
     logLevel: "info",
   });
 }

@@ -1,7 +1,7 @@
 import type { Express, Response } from "express";
 import WebSocket from 'ws';
 import jwt from 'jsonwebtoken';
-import { tourAttributes, carAttributes, roles, locations, attributes, tours, cars, bookings, notifications, eq } from "@shared/schema";
+import { tourAttributes, carAttributes, roles, locations, attributes, tours, cars, bookings, notifications, eq, Rating } from "@shared/schema";
 import type { Server } from "http";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
@@ -16,9 +16,9 @@ import{
   createChatbotQuestionInputSchema,
   updateChatbotQuestionInputSchema,
   chatbotAskInputSchema,
+  createRatingInputSchema,
+  updateRatingInputSchema,
 } from "@shared/schema";
-
-import { createRatingInputSchema, updateRatingInputSchema } from "@shared/schema";
 
 import { signToken, requireAuth, requireAdmin } from "./auth";
 import { eq, and, isNull, desc, sql } from "drizzle-orm";

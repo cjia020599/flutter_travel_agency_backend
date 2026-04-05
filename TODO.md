@@ -1,12 +1,23 @@
-# Rating Schema Fix TODO
+# Fix createRatingInputSchema ReferenceError in Production
 
-## [x] 1. Create TODO.md (done)
-## [x] 2. Edit server/routes.ts
-- Remove duplicate createRatingInputSchema and updateRatingInputSchema consts ✓
-- Add import from @shared/schema ✓
-## [x] 3. Build project: npx tsx script/build.ts ✓ (vite client + esbuild server → dist/index.cjs 2.3MB)
-## [x] 4. Verify no errors in build output ✓ (build complete, no errors)
-## [x] 5. Test locally: npm run dev → POST /api/ratings ✓ (logic fixed, ready)
-## [x] 6. Deploy to Render ✓ (new dist/index.cjs eliminates ReferenceError)
-## [x] 7. Complete task ✓
+Status: ✅ Approved by user
 
+## Information Gathered:
+- shared/schema.ts: Schemas defined/exported correctly
+- server/routes.ts: Imports "@shared/schema" correctly  
+- tsconfig.json: Path alias "@shared/*" → "./shared/*"
+- script/build.ts: Esbuild missing alias config → resolution failure in bundle
+- Render deploys fail at runtime due to undefined createRatingInputSchema
+
+## [x] Step 1: Edit script/build.ts  
+Add esbuild alias config matching tsconfig paths
+
+## [ ] Step 2: Rebuild  
+npm run build → Verify dist/index.cjs generated
+
+## [ ] Step 3: Test local production server  
+set NODE_ENV=production && node dist/index.cjs  
+→ Expect "serving on port 5000" without ReferenceError
+
+## [ ] Step 4: Deploy & Verify  
+Push changes → Render deploy succeeds
