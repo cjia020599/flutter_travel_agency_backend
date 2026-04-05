@@ -578,6 +578,5 @@ export const storage = new (class DatabaseStorage {
     await db.update(bookings).set({ status: "cancelled" }).where(eq(bookings.id, id));
   }
 }
-
-export const storage = new DatabaseStorage();
+)
 
