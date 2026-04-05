@@ -148,7 +148,13 @@ export class DatabaseStorage implements IStorage {
     return r;
   }
   async updateTour(id: number, updates: Partial<InsertTour>): Promise<Tour> {
+    console.log('STORAGE updateTour id:', id, 'updates:', updates);
     const [r] = await db.update(tours).set(updates).where(eq(tours.id, id)).returning();
+    if (!r) {
+      console.error('updateTour failed - no rows affected for id:', id);
+      throw new Error(`Failed to update tour ${id} - no rows matched`);
+    }
+    console.log('STORAGE updateTour success:', r.id);
     return r;
   }
   async deleteTour(id: number): Promise<void> {
@@ -168,7 +174,13 @@ export class DatabaseStorage implements IStorage {
     return r;
   }
   async updateCar(id: number, updates: Partial<InsertCar>): Promise<Car> {
+    console.log('STORAGE updateCar id:', id, 'updates:', updates);
     const [r] = await db.update(cars).set(updates).where(eq(cars.id, id)).returning();
+    if (!r) {
+      console.error('updateCar failed - no rows affected for id:', id);
+      throw new Error(`Failed to update car ${id} - no rows matched`);
+    }
+    console.log('STORAGE updateCar success:', r.id);
     return r;
   }
   async deleteCar(id: number): Promise<void> {

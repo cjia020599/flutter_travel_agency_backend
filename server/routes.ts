@@ -831,7 +831,9 @@ app.post('/api/upload/image', requireAuth, upload.fields([{ name: 'image', maxCo
 
   app.put(api.tours.update.path, async (req, res) => {
     try {
+      console.log('ROUTES PUT /api/tours/:id body:', req.body);
       const input = api.tours.update.input.parse(normalizeTourBody(req.body));
+      console.log('ROUTES parsed tourData:', input);
       if (!rejectEmptyTourUpdate(input, res)) return;
       
       const { attributeIds, ...tourData } = input;
@@ -846,6 +848,7 @@ app.post('/api/upload/image', requireAuth, upload.fields([{ name: 'image', maxCo
       }
       
       const tour = await storage.updateTour(Number(req.params.id), tourData);
+      console.log('ROUTES updateTour result:', tour);
       if (!tour) return res.status(404).json({ message: "Not found" });
       if (attributeIds !== undefined) {
         // Delete existing attributes
@@ -858,10 +861,11 @@ app.post('/api/upload/image', requireAuth, upload.fields([{ name: 'image', maxCo
       }
       res.json(tour);
     } catch (e) {
+      console.error('ROUTES tour update error:', e);
       if (e instanceof z.ZodError) {
         return res.status(400).json({ message: e.errors[0].message, field: e.errors[0].path.join(".") });
       }
-      res.status(500).json({ message: "Internal Error" });
+      res.status(500).json({ message: "Internal Error", error: e.message });
     }
   });
 
@@ -912,7 +916,9 @@ app.post('/api/upload/image', requireAuth, upload.fields([{ name: 'image', maxCo
 
   app.put(api.cars.update.path, async (req, res) => {
     try {
+      console.log('ROUTES PUT /api/cars/:id body:', req.body);
       const input = api.cars.update.input.parse(normalizeCarBody(req.body));
+      console.log('ROUTES parsed carData:', input);
       if (!rejectEmptyCarUpdate(input, res)) return;
       
       const { attributeIds, ...carData } = input;
@@ -927,6 +933,7 @@ app.post('/api/upload/image', requireAuth, upload.fields([{ name: 'image', maxCo
       }
       
       const car = await storage.updateCar(Number(req.params.id), carData);
+      console.log('ROUTES updateCar result:', car);
       if (!car) return res.status(404).json({ message: "Not found" });
       if (attributeIds !== undefined) {
         // Delete existing attributes
@@ -939,10 +946,11 @@ app.post('/api/upload/image', requireAuth, upload.fields([{ name: 'image', maxCo
       }
       res.json(car);
     } catch (e) {
+      console.error('ROUTES car update error:', e);
       if (e instanceof z.ZodError) {
         return res.status(400).json({ message: e.errors[0].message, field: e.errors[0].path.join(".") });
       }
-      res.status(500).json({ message: "Internal Error" });
+      res.status(500).json({ message: "Internal Error", error: e.message });
     }
   });
 

@@ -1,23 +1,34 @@
-# Car/Tour Update Fix - Snake Case Normalization ✅ COMPLETE
+# Fix Car/Tour Edit Issue (Backend Persistence)
+Status: ✅ Plan Approved - Implementing
 
-## Plan Status: ✅ Implemented and verified
+## Current Progress
+- [x] 1. Created detailed edit plan after full file analysis
+- [x] 2. Fix Zod schemas in shared/routes.ts (price → z.coerce.number())
+- [x] 3. Improve storage.updateCar/updateTour error handling + logging  
+- [x] 4. Add logging to PUT route handlers in server/routes.ts
+- [ ] 5. Test full edit flow (Network tab + DB verification + server logs)
+- [ ] 6. Clean up logging after verification
 
-## Steps:
-- ✅ 1. Added normalizeCarBody() and normalizeTourBody() functions in server/routes.ts
-- ✅ 2. Added rejectEmptyCarUpdate() and rejectEmptyTourUpdate() guard functions  
-- ✅ 3. Updated PUT /api/cars/:id handler to use normalization + guard
-- ✅ 4. Updated PUT /api/tours/:id handler to use normalization + guard
-- ✅ 5. Changes applied successfully
+**Next**: Run `npm run dev`, edit car/tour, check console + Network tab
 
-**Files Modified:** `server/routes.ts`
+## Root Cause
+Frontend sends price as string ("45.00"), Zod allows string, Drizzle/DB expects decimal → silent constraint failure → unchanged data returned.
 
-**Verification:**
-- Flutter snake_case fields now map to camelCase (car_title→title, price_per_day→price, etc.)
-- Empty updates return 400 "No valid car/tour fields to update"
-- Web client camelCase unchanged and works
-- Image deletion logic preserved
+## Test Commands
+```bash
+# Check DB after edit
+psql -d travel_agency -c "SELECT id, title, price FROM cars WHERE id = 1;"
+psql -d travel_agency -c "SELECT id, title, price FROM tours WHERE id = 1;"
 
-**Next:** 
-1. Restart server: `npm run dev`
-2. Test Flutter car/tour updates - should now persist changes
-3. Test web admin updates - should continue working
+# Server logs during edit
+npm run dev
+# Then edit car/tour → watch console for "PUT input:" / "Update result:"
+```
+
+## Success Criteria
+✅ Network PUT request succeeds (200)
+✅ Response contains NEW price/title values  
+✅ DB row reflects changes
+✅ Frontend shows updated list/profile
+✅ No Zod validation errors
+
