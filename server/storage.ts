@@ -620,6 +620,32 @@ export const storage = new (class DatabaseStorage {
     const [result] = await db.update(notifications).set({ readAt: new Date() }).where(eq(notifications.id, id)).returning();
     return result;
   }
+
+  // ---- Chatbot Questions ----
+  async getChatbotQuestions(): Promise<typeof schema.chatbotQuestions.$inferSelect[]> {
+    return db.select().from(schema.chatbotQuestions);
+  }
+
+  async getActiveChatbotQuestions(): Promise<typeof schema.chatbotQuestions.$inferSelect[]> {
+    return db.select().from(schema.chatbotQuestions).where(eq(schema.chatbotQuestions.active, true));
+  }
+
+  async createChatbotQuestion(data: typeof schema.insertChatbotQuestionSchema._input): Promise<typeof schema.chatbotQuestions.$inferSelect> {
+    const [result] = await db.insert(schema.chatbotQuestions).values(data).returning();
+    return result;
+  }
+
+  async updateChatbotQuestion(id: number, updates: Partial<typeof schema.insertChatbotQuestionSchema._input>): Promise<typeof schema.chatbotQuestions.$inferSelect | undefined> {
+    const [result] = await db.update(schema.chatbotQuestions).set({
+      ...updates,
+      updatedAt: new Date(),
+    }).where(eq(schema.chatbotQuestions.id, id)).returning();
+    return result;
+  }
+
+  async deleteChatbotQuestion(id: number): Promise<void> {
+    await db.delete(schema.chatbotQuestions).where(eq(schema.chatbotQuestions.id, id));
+  }
 }
 )
 
