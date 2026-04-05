@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { RegisterInput, LoginInput, UpdateProfileInput, Tour, Car, Location, Attribute, AuthUser, ChatbotQuestion } from "./schema";
+import type { RegisterInput, LoginInput, UpdateProfileInput, Tour, Car, Location, Attribute, AuthUser, ChatbotQuestion, Rating } from "./schema";
 import {
   registerSchema,
   loginSchema,
@@ -10,6 +10,8 @@ import {
   createChatbotQuestionInputSchema,
   updateChatbotQuestionInputSchema,
   chatbotAskInputSchema,
+  createRatingInputSchema,
+  updateRatingInputSchema,
 } from "./schema";
 
 // ==================== UTILITY ====================

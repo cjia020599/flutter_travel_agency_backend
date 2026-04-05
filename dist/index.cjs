@@ -59212,7 +59212,7 @@ __export(schema_exports, {
   chatbotQuestions: () => chatbotQuestions,
   createChatbotQuestionInputSchema: () => createChatbotQuestionInputSchema,
   createNotificationInputSchema: () => createNotificationInputSchema,
-  createRatingInputSchema: () => createRatingInputSchema2,
+  createRatingInputSchema: () => createRatingInputSchema,
   getNotificationsInputSchema: () => getNotificationsInputSchema,
   insertAttributeSchema: () => insertAttributeSchema,
   insertBookingSchema: () => insertBookingSchema,
@@ -59241,7 +59241,7 @@ __export(schema_exports, {
   tours: () => tours,
   updateChatbotQuestionInputSchema: () => updateChatbotQuestionInputSchema,
   updateProfileSchema: () => updateProfileSchema,
-  updateRatingInputSchema: () => updateRatingInputSchema2,
+  updateRatingInputSchema: () => updateRatingInputSchema,
   users: () => users,
   vendorProfiles: () => vendorProfiles
 });
@@ -63736,13 +63736,13 @@ var insertChatbotQuestionSchema = createInsertSchema(chatbotQuestions).omit({
   createdAt: true,
   updatedAt: true
 });
-var createRatingInputSchema2 = z.object({
+var createRatingInputSchema = z.object({
   moduleType: z.enum(["car", "tour"]),
   moduleId: z.coerce.number().int().positive(),
   stars: z.coerce.number().int().min(1).max(5),
   comment: z.string().trim().min(1).max(2e3).optional()
 });
-var updateRatingInputSchema2 = z.object({
+var updateRatingInputSchema = z.object({
   stars: z.coerce.number().int().min(1).max(5).optional(),
   comment: z.string().trim().min(1).max(2e3).optional()
 }).refine((data) => data.stars !== void 0 || data.comment !== void 0, {
