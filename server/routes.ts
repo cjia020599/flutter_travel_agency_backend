@@ -738,7 +738,9 @@ app.post('/api/upload/image', requireAuth, upload.fields([{ name: 'image', maxCo
 
   app.put(api.tours.update.path, async (req, res) => {
     try {
-      const input = api.tours.update.input.parse(req.body);
+      const input = api.tours.update.input.parse(normalizeTourBody(req.body));
+      if (!rejectEmptyTourUpdate(input, res)) return;
+      
       const { attributeIds, ...tourData } = input;
       
       // Get current tour to check for image changes
@@ -817,7 +819,9 @@ app.post('/api/upload/image', requireAuth, upload.fields([{ name: 'image', maxCo
 
   app.put(api.cars.update.path, async (req, res) => {
     try {
-      const input = api.cars.update.input.parse(req.body);
+      const input = api.cars.update.input.parse(normalizeCarBody(req.body));
+      if (!rejectEmptyCarUpdate(input, res)) return;
+      
       const { attributeIds, ...carData } = input;
       
       // Get current car to check for image changes

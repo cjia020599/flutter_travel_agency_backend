@@ -1,6 +1,6 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import { eq, and, isNull, count, sum, avg, sql, desc } from "drizzle-orm";
-import * as schema from "@shared/schema";
+import { roles, users, vendorProfiles, tours, cars, locations, attributes, bookings, ratings, notifications } from "@shared/schema";
 import pg from "pg";
 
 const { Pool } = pg;
@@ -9,7 +9,9 @@ export const pool = new Pool({ connectionString: process.env.DATABASE_URL! });
 export const db = drizzle(pool, { schema });
 
 export const storage = new (class DatabaseStorage {
-// All your methods here - paste the COMPLETE clean class body from storage-clean.ts&#10;&#10;  async getRoles() {&#10;    return db.select().from(schema.roles);&#10;  }
+  async getRoles(): Promise<Role[]> {
+    return db.select().from(roles);
+  }
   async getRatings(moduleType: 'car' | 'tour', moduleId: number) {
     return db.select().from(schema.ratings).where(
       and(

@@ -1,22 +1,10 @@
-# WebSocket Fix TODO - 🔧 ADDITIONAL BUILD FIX
+# Fix roles ReferenceError in server/storage.ts
 
-## Status: Build fixed, ready for redeploy
+## TODO Steps:
+- [x] 1. Create TODO.md with approved plan steps
+- [x] 2. Add missing schema imports to server/storage.ts 
+- [x] 3. Update getRoles() method to use direct table reference
+- [x] 4. Test server restart and seed execution
+- [x] 5. Verify /api/admin/roles endpoint works
+- [x] 6. Mark complete and attempt_completion
 
-**Changes**:
-- Step 1-2: Imports/jwt ✅ server/routes.ts
-- **New**: Step 3b - Added "ws" to externals in script/build.ts → prevents esbuild wrapper_default bug
-
-## Steps:
-- [x] Imports added to routes.ts
-- [x] jwt.verify fixed
-- [x] Build config fixed (ws external)
-- [ ] Run `npx tsx script/build.ts` 
-- [ ] Redeploy to Render
-
-**Test build locally**: 
-```
-npx tsx script/build.ts
-node dist/index.cjs
-```
-
-**Deploy**: Push changes & trigger Render rebuild.
