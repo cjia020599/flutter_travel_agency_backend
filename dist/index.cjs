@@ -65569,9 +65569,23 @@ var { Pool } = import_pg.default;
 var pool = new Pool({ connectionString: process.env.DATABASE_URL });
 var db = (0, import_node_postgres.drizzle)(pool, { schema: schema_exports });
 var storage = new class DatabaseStorage {
-  // All your methods here - paste the COMPLETE clean class body from storage-clean.ts&#10;&#10;  async getRoles() {&#10;    return db.select().from(schema.roles);&#10;  }
+  async getRoles() {
+    return db.select().from(roles);
+  }
   async getRatings(moduleType, moduleId) {
-    return db.select().from(ratings).where(
+    return db.select({
+      id: ratings.id,
+      userId: ratings.userId,
+      moduleType: ratings.moduleType,
+      moduleId: ratings.moduleId,
+      stars: ratings.stars,
+      comment: ratings.comment,
+      createdAt: ratings.createdAt,
+      updatedAt: ratings.updatedAt,
+      userName: users.firstName,
+      userAvatar: users.avatar,
+      userInitials: import_drizzle_orm2.sql`concat(substring(${users.firstName}, 1, 1), substring(${users.lastName}, 1, 1))`
+    }).from(ratings).innerJoin(users, (0, import_drizzle_orm2.eq)(ratings.userId, users.id)).where(
       (0, import_drizzle_orm2.and)(
         (0, import_drizzle_orm2.eq)(ratings.moduleType, moduleType),
         (0, import_drizzle_orm2.eq)(ratings.moduleId, moduleId)
@@ -65586,6 +65600,10 @@ var storage = new class DatabaseStorage {
         (0, import_drizzle_orm2.eq)(ratings.moduleId, moduleId)
       )
     );
+    return r;
+  }
+  async getRatingById(id) {
+    const [r] = await db.select().from(ratings).where((0, import_drizzle_orm2.eq)(ratings.id, id));
     return r;
   }
   async createRating(data) {
@@ -65603,7 +65621,477 @@ var storage = new class DatabaseStorage {
   async deleteRating(id) {
     await db.delete(ratings).where((0, import_drizzle_orm2.eq)(ratings.id, id));
   }
-  // Add other methods as needed...
+  // ---- Tours ----
+  async getTours() {
+    return db.select().from(tours);
+  }
+  async getTour(id) {
+    const [r] = await db.select().from(tours).where((0, import_drizzle_orm2.eq)(tours.id, id));
+    return r;
+  }
+  async createTour(tour) {
+    const [r] = await db.insert(tours).values(tour).returning();
+    return r;
+  }
+  async updateTour(id, updates) {
+    const [r] = await db.update(tours).set(updates).where((0, import_drizzle_orm2.eq)(tours.id, id)).returning();
+    return r;
+  }
+  async deleteTour(id) {
+    await db.update(tours).set({ deletedAt: /* @__PURE__ */ new Date() }).where((0, import_drizzle_orm2.eq)(tours.id, id));
+  }
+  // ---- Cars ----
+  async getCars() {
+    return db.select().from(cars);
+  }
+  async getCar(id) {
+    const [r] = await db.select().from(cars).where((0, import_drizzle_orm2.eq)(cars.id, id));
+    return r;
+  }
+  async createCar(car) {
+    const [r] = await db.insert(cars).values(car).returning();
+    return r;
+  }
+  async updateCar(id, updates) {
+    const [r] = await db.update(cars).set(updates).where((0, import_drizzle_orm2.eq)(cars.id, id)).returning();
+    return r;
+  }
+  async deleteCar(id) {
+    await db.update(cars).set({ deletedAt: /* @__PURE__ */ new Date() }).where((0, import_drizzle_orm2.eq)(cars.id, id));
+  }
+  // ---- Lookups ----
+  async getLocations() {
+    return db.select().from(locations);
+  }
+  async getAttributes() {
+    return db.select().from(attributes);
+  }
+  // ---- Users ----
+  async buildAuthUser(user) {
+    const [role] = await db.select().from(roles).where((0, import_drizzle_orm2.eq)(roles.id, user.roleId));
+    const vendor = await this.getVendorByUserId(user.id);
+    return {
+      id: user.id,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      username: user.username,
+      email: user.email,
+      phone: user.phone,
+      birthday: user.birthday,
+      avatar: user.avatar,
+      bio: user.bio,
+      addressLine1: user.addressLine1,
+      addressLine2: user.addressLine2,
+      city: user.city,
+      state: user.state,
+      country: user.country,
+      zipCode: user.zipCode,
+      roleId: user.roleId,
+      roleName: role?.name ?? "Customer",
+      roleCode: role?.code ?? "customer",
+      vendorProfile: vendor ?? null
+    };
+  }
+  async getUserById(id) {
+    const [user] = await db.select().from(users).where((0, import_drizzle_orm2.eq)(users.id, id));
+    if (!user) return void 0;
+    return this.buildAuthUser(user);
+  }
+  async getRawUser(id) {
+    const [r] = await db.select().from(users).where((0, import_drizzle_orm2.eq)(users.id, id));
+    return r;
+  }
+  async getUserByEmail(email) {
+    const [r] = await db.select().from(users).where((0, import_drizzle_orm2.eq)(users.email, email));
+    return r;
+  }
+  async getUserByUsername(username) {
+    const [r] = await db.select().from(users).where((0, import_drizzle_orm2.eq)(users.username, username));
+    return r;
+  }
+  async createUser(user) {
+    const [r] = await db.insert(users).values(user).returning();
+    return r;
+  }
+  async updateUser(id, updates) {
+    await db.update(users).set(updates).where((0, import_drizzle_orm2.eq)(users.id, id));
+    return this.getUserById(id);
+  }
+  async getUsers() {
+    const all = await db.select().from(users);
+    return Promise.all(all.map((u) => this.buildAuthUser(u)));
+  }
+  async deleteUser(id) {
+    await db.delete(users).where((0, import_drizzle_orm2.eq)(users.id, id));
+  }
+  // ---- Vendor ----
+  async createVendorProfile(profile) {
+    const [r] = await db.insert(vendorProfiles).values(profile).returning();
+    return r;
+  }
+  async getVendorByUserId(userId) {
+    const [r] = await db.select().from(vendorProfiles).where((0, import_drizzle_orm2.eq)(vendorProfiles.userId, userId));
+    return r;
+  }
+  // ---- Roles ----
+  async getRoles() {
+    return db.select().from(roles);
+  }
+  async getRoleByCode(code) {
+    const [r] = await db.select().from(roles).where((0, import_drizzle_orm2.eq)(roles.code, code));
+    return r;
+  }
+  // ---- Car Rentals ----
+  async getCarRentals(filters) {
+    const query = db.select({
+      id: bookings.id,
+      userId: bookings.userId,
+      moduleType: bookings.moduleType,
+      moduleId: bookings.moduleId,
+      startDate: bookings.startDate,
+      endDate: bookings.endDate,
+      status: bookings.status,
+      car: cars.id,
+      carTitle: cars.title,
+      carPrice: cars.price,
+      carImageUrl: cars.imageUrl,
+      carLocationId: cars.locationId,
+      user: users.id,
+      userFirstName: users.firstName,
+      userLastName: users.lastName,
+      userEmail: users.email
+    }).from(bookings).leftJoin(cars, (0, import_drizzle_orm2.eq)(bookings.moduleId, cars.id)).leftJoin(users, (0, import_drizzle_orm2.eq)(bookings.userId, users.id)).where(
+      (0, import_drizzle_orm2.and)(
+        (0, import_drizzle_orm2.eq)(bookings.moduleType, "car"),
+        (0, import_drizzle_orm2.isNull)(cars.deletedAt),
+        filters?.userId ? (0, import_drizzle_orm2.eq)(bookings.userId, filters.userId) : import_drizzle_orm2.sql`true`
+      )
+    );
+    const results = await query;
+    return results.map((r) => ({
+      id: r.id,
+      userId: r.userId,
+      moduleType: r.moduleType,
+      moduleId: r.moduleId,
+      startDate: r.startDate,
+      endDate: r.endDate,
+      status: r.status,
+      buyerName: null,
+      buyerEmail: null,
+      buyerPhone: null,
+      car: {
+        id: r.car,
+        title: r.carTitle,
+        price: r.carPrice,
+        imageUrl: r.carImageUrl,
+        locationId: r.carLocationId
+      },
+      user: {
+        id: r.user,
+        firstName: r.userFirstName,
+        lastName: r.userLastName,
+        email: r.userEmail
+      }
+    }));
+  }
+  async createCarRental(rental) {
+    const [result] = await db.insert(bookings).values(rental).returning();
+    return result;
+  }
+  async cancelCarRental(id) {
+    await db.update(bookings).set({ status: "cancelled" }).where((0, import_drizzle_orm2.eq)(bookings.id, id));
+  }
+  // ---- Tour Bookings ----
+  async getTourBookings(filters) {
+    const query = db.select({
+      id: bookings.id,
+      userId: bookings.userId,
+      moduleType: bookings.moduleType,
+      moduleId: bookings.moduleId,
+      startDate: bookings.startDate,
+      endDate: bookings.endDate,
+      status: bookings.status,
+      buyerName: bookings.buyerName,
+      buyerEmail: bookings.buyerEmail,
+      buyerPhone: bookings.buyerPhone,
+      tour: tours.id,
+      tourTitle: tours.title,
+      tourPrice: tours.price,
+      tourImageUrl: tours.imageUrl,
+      tourLocationId: tours.locationId,
+      user: users.id,
+      userFirstName: users.firstName,
+      userLastName: users.lastName,
+      userEmail: users.email
+    }).from(bookings).leftJoin(tours, (0, import_drizzle_orm2.eq)(bookings.moduleId, tours.id)).leftJoin(users, (0, import_drizzle_orm2.eq)(bookings.userId, users.id)).where(
+      (0, import_drizzle_orm2.and)(
+        (0, import_drizzle_orm2.eq)(bookings.moduleType, "tour"),
+        (0, import_drizzle_orm2.isNull)(tours.deletedAt),
+        filters?.userId ? (0, import_drizzle_orm2.eq)(bookings.userId, filters.userId) : import_drizzle_orm2.sql`true`
+      )
+    );
+    const results = await query;
+    return results.map((r) => ({
+      ...r,
+      tour: {
+        id: r.tour,
+        title: r.tourTitle,
+        price: r.tourPrice,
+        imageUrl: r.tourImageUrl,
+        locationId: r.tourLocationId
+      },
+      user: {
+        id: r.user,
+        firstName: r.userFirstName,
+        lastName: r.userLastName,
+        email: r.userEmail
+      }
+    }));
+  }
+  async createTourBooking(booking) {
+    const [result] = await db.insert(bookings).values(booking).returning();
+    return result;
+  }
+  async cancelTourBooking(id) {
+    await db.update(bookings).set({ status: "cancelled" }).where((0, import_drizzle_orm2.eq)(bookings.id, id));
+  }
+  // ---- Reports ----
+  async getTourSummary(filters) {
+    let query = db.select({
+      status: tours.status,
+      count: (0, import_drizzle_orm2.count)(),
+      avgPrice: (0, import_drizzle_orm2.avg)(tours.price)
+    }).from(tours).where((0, import_drizzle_orm2.isNull)(tours.deletedAt));
+    if (filters?.vendorId) {
+      query = query.where((0, import_drizzle_orm2.eq)(tours.authorId, filters.vendorId));
+    }
+    if (filters?.status) {
+      query = query.where((0, import_drizzle_orm2.eq)(tours.status, filters.status));
+    }
+    if (filters?.locationId) {
+      query = query.where((0, import_drizzle_orm2.eq)(tours.locationId, filters.locationId));
+    }
+    query = query.groupBy(tours.status);
+    const results = await query;
+    return results.map((r) => ({
+      status: r.status || "unknown",
+      count: Number(r.count),
+      avgPrice: parseFloat(r.avgPrice || "0")
+    }));
+  }
+  async getCarSummary(filters) {
+    let query = db.select({
+      status: cars.status,
+      count: (0, import_drizzle_orm2.count)(),
+      avgPrice: (0, import_drizzle_orm2.avg)(cars.price),
+      avgPassenger: (0, import_drizzle_orm2.avg)(cars.passenger)
+    }).from(cars).where((0, import_drizzle_orm2.isNull)(cars.deletedAt));
+    if (filters?.vendorId) {
+      query = query.where((0, import_drizzle_orm2.eq)(cars.authorId, filters.vendorId));
+    }
+    if (filters?.status) {
+      query = query.where((0, import_drizzle_orm2.eq)(cars.status, filters.status));
+    }
+    if (filters?.locationId) {
+      query = query.where((0, import_drizzle_orm2.eq)(cars.locationId, filters.locationId));
+    }
+    query = query.groupBy(cars.status);
+    const results = await query;
+    return results.map((r) => ({
+      status: r.status || "unknown",
+      count: Number(r.count),
+      avgPrice: parseFloat(r.avgPrice || "0"),
+      avgPassenger: parseFloat(r.avgPassenger || "0")
+    }));
+  }
+  async getBookingStats(filters) {
+    try {
+      const totalQuery = await db.select({ count: (0, import_drizzle_orm2.count)() }).from(bookings);
+      const confirmedQuery = await db.select({ count: (0, import_drizzle_orm2.count)() }).from(bookings).where((0, import_drizzle_orm2.eq)(bookings.status, "confirmed"));
+      const cancelledQuery = await db.select({ count: (0, import_drizzle_orm2.count)() }).from(bookings).where((0, import_drizzle_orm2.eq)(bookings.status, "cancelled"));
+      const tourStats = await db.select({
+        count: (0, import_drizzle_orm2.count)(),
+        revenue: (0, import_drizzle_orm2.sum)(import_drizzle_orm2.sql`t."price"::numeric`)
+      }).from(bookings).leftJoin(tours, (0, import_drizzle_orm2.eq)(bookings.moduleId, tours.id)).where((0, import_drizzle_orm2.eq)(bookings.moduleType, "tour"));
+      const carStats = await db.select({
+        count: (0, import_drizzle_orm2.count)(),
+        revenue: (0, import_drizzle_orm2.sum)(import_drizzle_orm2.sql`c."price"::numeric`)
+      }).from(bookings).leftJoin(cars, (0, import_drizzle_orm2.eq)(bookings.moduleId, cars.id)).where((0, import_drizzle_orm2.eq)(bookings.moduleType, "car"));
+      return {
+        totalBookings: Number(totalQuery[0]?.count || 0),
+        totalRevenue: 0,
+        confirmed: Number(confirmedQuery[0]?.count || 0),
+        cancelled: Number(cancelledQuery[0]?.count || 0),
+        byModuleType: [
+          { type: "tour", count: Number(tourStats[0]?.count || 0), revenue: 0 },
+          { type: "car", count: Number(carStats[0]?.count || 0), revenue: 0 }
+        ]
+      };
+    } catch (error) {
+      console.error("Booking stats error:", error);
+      return {
+        totalBookings: 0,
+        totalRevenue: 0,
+        confirmed: 0,
+        cancelled: 0,
+        byModuleType: []
+      };
+    }
+  }
+  async getLocationStats(filters) {
+    try {
+      const query = await db.select({
+        id: locations.id,
+        name: locations.name,
+        tours: (0, import_drizzle_orm2.count)(tours.id).as("tours"),
+        cars: (0, import_drizzle_orm2.count)(cars.id).as("cars"),
+        bookings: (0, import_drizzle_orm2.count)().as("bookings"),
+        revenue: import_drizzle_orm2.sql`0`.as("revenue")
+      }).from(locations).leftJoin(tours, (0, import_drizzle_orm2.eq)(locations.id, tours.locationId)).leftJoin(cars, (0, import_drizzle_orm2.eq)(locations.id, cars.locationId)).where((0, import_drizzle_orm2.isNull)(locations.deletedAt)).groupBy(locations.id, locations.name);
+      return (await query).map((r) => ({
+        id: Number(r.id),
+        name: r.name || "",
+        tours: Number(r.tours || 0),
+        cars: Number(r.cars || 0),
+        bookings: Number(r.bookings || 0),
+        revenue: 0
+      }));
+    } catch (error) {
+      console.error("Location stats error:", error);
+      return [];
+    }
+  }
+  // ---- Car Rentals ----
+  async getCarRentals(filters) {
+    const query = db.select({
+      id: bookings.id,
+      userId: bookings.userId,
+      moduleType: bookings.moduleType,
+      moduleId: bookings.moduleId,
+      startDate: bookings.startDate,
+      endDate: bookings.endDate,
+      status: bookings.status,
+      car: cars.id,
+      carTitle: cars.title,
+      carPrice: cars.price,
+      carImageUrl: cars.imageUrl,
+      carLocationId: cars.locationId,
+      user: users.id,
+      userFirstName: users.firstName,
+      userLastName: users.lastName,
+      userEmail: users.email
+    }).from(bookings).leftJoin(cars, (0, import_drizzle_orm2.eq)(bookings.moduleId, cars.id)).leftJoin(users, (0, import_drizzle_orm2.eq)(bookings.userId, users.id)).where(
+      (0, import_drizzle_orm2.and)(
+        (0, import_drizzle_orm2.eq)(bookings.moduleType, "car"),
+        (0, import_drizzle_orm2.isNull)(cars.deletedAt),
+        filters?.userId ? (0, import_drizzle_orm2.eq)(bookings.userId, filters.userId) : import_drizzle_orm2.sql`true`
+      )
+    );
+    const results = await query;
+    return results.map((r) => ({
+      id: r.id,
+      userId: r.userId,
+      moduleType: r.moduleType,
+      moduleId: r.moduleId,
+      startDate: r.startDate,
+      endDate: r.endDate,
+      status: r.status,
+      buyerName: null,
+      buyerEmail: null,
+      buyerPhone: null,
+      car: {
+        id: r.car,
+        title: r.carTitle,
+        price: r.carPrice,
+        imageUrl: r.carImageUrl,
+        locationId: r.carLocationId
+      },
+      user: {
+        id: r.user,
+        firstName: r.userFirstName,
+        lastName: r.userLastName,
+        email: r.userEmail
+      }
+    }));
+  }
+  async createCarRental(rental) {
+    const [result] = await db.insert(bookings).values(rental).returning();
+    return result;
+  }
+  async cancelCarRental(id) {
+    await db.update(bookings).set({ status: "cancelled" }).where((0, import_drizzle_orm2.eq)(bookings.id, id));
+  }
+  // ---- Tour Bookings ----
+  async getTourBookings(filters) {
+    const query = db.select({
+      id: bookings.id,
+      userId: bookings.userId,
+      moduleType: bookings.moduleType,
+      moduleId: bookings.moduleId,
+      startDate: bookings.startDate,
+      endDate: bookings.endDate,
+      status: bookings.status,
+      buyerName: bookings.buyerName,
+      buyerEmail: bookings.buyerEmail,
+      buyerPhone: bookings.buyerPhone,
+      tour: tours.id,
+      tourTitle: tours.title,
+      tourPrice: tours.price,
+      tourImageUrl: tours.imageUrl,
+      tourLocationId: tours.locationId,
+      user: users.id,
+      userFirstName: users.firstName,
+      userLastName: users.lastName,
+      userEmail: users.email
+    }).from(bookings).leftJoin(tours, (0, import_drizzle_orm2.eq)(bookings.moduleId, tours.id)).leftJoin(users, (0, import_drizzle_orm2.eq)(bookings.userId, users.id)).where(
+      (0, import_drizzle_orm2.and)(
+        (0, import_drizzle_orm2.eq)(bookings.moduleType, "tour"),
+        (0, import_drizzle_orm2.isNull)(tours.deletedAt),
+        filters?.userId ? (0, import_drizzle_orm2.eq)(bookings.userId, filters.userId) : import_drizzle_orm2.sql`true`
+      )
+    );
+    const results = await query;
+    return results.map((r) => ({
+      ...r,
+      tour: {
+        id: r.tour,
+        title: r.tourTitle,
+        price: r.tourPrice,
+        imageUrl: r.tourImageUrl,
+        locationId: r.tourLocationId
+      },
+      user: {
+        id: r.user,
+        firstName: r.userFirstName,
+        lastName: r.userLastName,
+        email: r.userEmail
+      }
+    }));
+  }
+  async createTourBooking(booking) {
+    const [result] = await db.insert(bookings).values(booking).returning();
+    return result;
+  }
+  async cancelTourBooking(id) {
+    await db.update(bookings).set({ status: "cancelled" }).where((0, import_drizzle_orm2.eq)(bookings.id, id));
+  }
+  // ---- Notifications ----
+  async getUserNotifications(userId, input) {
+    let query = db.select().from(notifications).where((0, import_drizzle_orm2.eq)(notifications.userId, userId));
+    if (input.unreadOnly) {
+      query = query.where((0, import_drizzle_orm2.isNull)(notifications.readAt));
+    }
+    const offset = (input.page - 1) * input.limit;
+    return query.orderBy((0, import_drizzle_orm2.desc)(notifications.createdAt)).limit(input.limit).offset(offset);
+  }
+  async createNotification(notification) {
+    const [result] = await db.insert(notifications).values(notification).returning();
+    return result;
+  }
+  async markNotificationRead(id) {
+    const [result] = await db.update(notifications).set({ readAt: /* @__PURE__ */ new Date() }).where((0, import_drizzle_orm2.eq)(notifications.id, id)).returning();
+    return result;
+  }
 }();
 
 // shared/routes.ts
@@ -65662,18 +66150,33 @@ var api = {
         title: z.string(),
         slug: z.string(),
         content: z.string().optional(),
-        price: z.coerce.number().optional(),
-        salePrice: z.coerce.number().optional(),
-        status: z.string(),
+        categoryId: z.number().optional(),
+        videoUrl: z.string().optional(),
         imageUrl: z.string().optional(),
-        locationId: z.coerce.number().optional(),
-        duration: z.coerce.number().optional(),
-        minPeople: z.coerce.number().optional(),
-        maxPeople: z.coerce.number().optional(),
-        minDayBeforeBooking: z.coerce.number().optional(),
-        mapLat: z.coerce.number().optional(),
-        mapLng: z.coerce.number().optional(),
-        mapZoom: z.coerce.number().optional(),
+        status: z.string(),
+        isFeatured: z.boolean().optional(),
+        duration: z.number().optional(),
+        minPeople: z.number().optional(),
+        maxPeople: z.number().optional(),
+        minDayBeforeBooking: z.number().optional(),
+        itinerary: z.any().optional(),
+        faqs: z.any().optional(),
+        include: z.any().optional(),
+        exclude: z.any().optional(),
+        surroundings: z.any().optional(),
+        mapLat: z.string().optional(),
+        mapLng: z.string().optional(),
+        mapZoom: z.number().optional(),
+        realAddress: z.string().optional(),
+        price: z.string().optional(),
+        salePrice: z.string().optional(),
+        extraPrices: z.any().optional(),
+        serviceFees: z.any().optional(),
+        personTypes: z.any().optional(),
+        discountByPeople: z.any().optional(),
+        fixedDates: z.boolean().optional(),
+        openHours: z.any().optional(),
+        locationId: z.number().optional(),
         attributeIds: z.array(z.number()).optional()
       }),
       responses: {
@@ -65688,18 +66191,33 @@ var api = {
         title: z.string().optional(),
         slug: z.string().optional(),
         content: z.string().optional(),
-        price: z.coerce.number().optional(),
-        salePrice: z.coerce.number().optional(),
-        status: z.string().optional(),
+        categoryId: z.number().optional(),
+        videoUrl: z.string().optional(),
         imageUrl: z.string().optional(),
-        locationId: z.coerce.number().optional(),
-        duration: z.coerce.number().optional(),
-        minPeople: z.coerce.number().optional(),
-        maxPeople: z.coerce.number().optional(),
-        minDayBeforeBooking: z.coerce.number().optional(),
-        mapLat: z.coerce.number().optional(),
-        mapLng: z.coerce.number().optional(),
-        mapZoom: z.coerce.number().optional(),
+        status: z.string().optional(),
+        isFeatured: z.boolean().optional(),
+        duration: z.number().optional(),
+        minPeople: z.number().optional(),
+        maxPeople: z.number().optional(),
+        minDayBeforeBooking: z.number().optional(),
+        itinerary: z.any().optional(),
+        faqs: z.any().optional(),
+        include: z.any().optional(),
+        exclude: z.any().optional(),
+        surroundings: z.any().optional(),
+        mapLat: z.string().optional(),
+        mapLng: z.string().optional(),
+        mapZoom: z.number().optional(),
+        realAddress: z.string().optional(),
+        price: z.string().optional(),
+        salePrice: z.string().optional(),
+        extraPrices: z.any().optional(),
+        serviceFees: z.any().optional(),
+        personTypes: z.any().optional(),
+        discountByPeople: z.any().optional(),
+        fixedDates: z.boolean().optional(),
+        openHours: z.any().optional(),
+        locationId: z.number().optional(),
         attributeIds: z.array(z.number()).optional()
       }),
       responses: { 200: z.object({}) }
@@ -65728,19 +66246,28 @@ var api = {
         title: z.string(),
         slug: z.string(),
         content: z.string().optional(),
-        price: z.coerce.number().optional(),
-        salePrice: z.coerce.number().optional(),
-        passenger: z.coerce.number().optional(),
-        baggage: z.coerce.number().optional(),
-        door: z.coerce.number().optional(),
-        inventoryCount: z.coerce.number().optional(),
-        minDayStay: z.coerce.number().optional(),
-        minDayBeforeBooking: z.coerce.number().optional(),
-        mapLat: z.coerce.number().optional(),
-        mapLng: z.coerce.number().optional(),
-        mapZoom: z.coerce.number().optional(),
+        videoUrl: z.string().optional(),
+        imageUrl: z.string().optional(),
+        status: z.string().optional(),
+        isFeatured: z.boolean().optional(),
+        passenger: z.number().optional(),
         gearShift: z.string().optional(),
-        locationId: z.coerce.number().optional(),
+        baggage: z.number().optional(),
+        door: z.number().optional(),
+        inventoryCount: z.number().optional(),
+        minDayStay: z.number().optional(),
+        minDayBeforeBooking: z.number().optional(),
+        mapLat: z.string().optional(),
+        mapLng: z.string().optional(),
+        mapZoom: z.number().optional(),
+        realAddress: z.string().optional(),
+        price: z.string().optional(),
+        salePrice: z.string().optional(),
+        extraPrices: z.any().optional(),
+        serviceFees: z.any().optional(),
+        fixedDates: z.boolean().optional(),
+        openHours: z.any().optional(),
+        locationId: z.number().optional(),
         attributeIds: z.array(z.number()).optional()
       }),
       responses: {
@@ -65755,21 +66282,28 @@ var api = {
         title: z.string().optional(),
         slug: z.string().optional(),
         content: z.string().optional(),
-        price: z.coerce.number().optional(),
-        salePrice: z.coerce.number().optional(),
-        status: z.string().optional(),
+        videoUrl: z.string().optional(),
         imageUrl: z.string().optional(),
-        passenger: z.coerce.number().optional(),
-        baggage: z.coerce.number().optional(),
-        door: z.coerce.number().optional(),
-        inventoryCount: z.coerce.number().optional(),
-        minDayStay: z.coerce.number().optional(),
-        minDayBeforeBooking: z.coerce.number().optional(),
-        mapLat: z.coerce.number().optional(),
-        mapLng: z.coerce.number().optional(),
-        mapZoom: z.coerce.number().optional(),
+        status: z.string().optional(),
+        isFeatured: z.boolean().optional(),
+        passenger: z.number().optional(),
         gearShift: z.string().optional(),
-        locationId: z.coerce.number().optional(),
+        baggage: z.number().optional(),
+        door: z.number().optional(),
+        inventoryCount: z.number().optional(),
+        minDayStay: z.number().optional(),
+        minDayBeforeBooking: z.number().optional(),
+        mapLat: z.string().optional(),
+        mapLng: z.string().optional(),
+        mapZoom: z.number().optional(),
+        realAddress: z.string().optional(),
+        price: z.string().optional(),
+        salePrice: z.string().optional(),
+        extraPrices: z.any().optional(),
+        serviceFees: z.any().optional(),
+        fixedDates: z.boolean().optional(),
+        openHours: z.any().optional(),
+        locationId: z.number().optional(),
         attributeIds: z.array(z.number()).optional()
       }),
       responses: { 200: z.object({}) }
@@ -66047,131 +66581,31 @@ function rejectEmptyProfileUpdate(input, res) {
   res.status(400).json({ message: "No valid profile fields to update" });
   return false;
 }
-function normalizeCarBody(body) {
+function normalizeUpdateBody(body) {
   const normalized = { ...body };
-  const carFields = /* @__PURE__ */ new Set([
-    "title",
-    "slug",
-    "content",
-    "videoUrl",
-    "imageUrl",
-    "status",
-    "isFeatured",
-    "passenger",
-    "gearShift",
-    "baggage",
-    "door",
-    "inventoryCount",
-    "minDayStay",
-    "minDayBeforeBooking",
-    "mapLat",
-    "mapLng",
-    "mapZoom",
-    "realAddress",
-    "price",
-    "salePrice",
-    "extraPrices",
-    "serviceFees",
-    "fixedDates",
-    "openHours",
-    "locationId",
-    "authorId"
-  ]);
-  const mappings = {
-    "car_title": "title",
-    "car_slug": "slug",
-    "car_content": "content",
-    "video_url": "videoUrl",
-    "image_url": "imageUrl",
-    "is_featured": "isFeatured",
-    "passenger_count": "passenger",
-    "gear_shift": "gearShift",
-    "baggage_count": "baggage",
-    "door_count": "door",
-    "inventory_count": "inventoryCount",
-    "min_day_stay": "minDayStay",
-    "min_day_before_booking": "minDayBeforeBooking",
-    "map_lat": "mapLat",
-    "map_lng": "mapLng",
-    "real_address": "realAddress",
-    "price_per_day": "price",
-    "sale_price_per_day": "salePrice",
-    "location_id": "locationId"
-  };
-  for (const [snakeKey, camelKey] of Object.entries(mappings)) {
-    if (body[snakeKey] !== void 0 && normalized[camelKey] === void 0 && carFields.has(camelKey)) {
-      normalized[camelKey] = body[snakeKey];
+  for (const [key, value] of Object.entries(body)) {
+    if (!key.includes("_")) continue;
+    const camelKey = key.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
+    if (!(camelKey in normalized)) {
+      normalized[camelKey] = value;
     }
   }
   return normalized;
 }
 function normalizeTourBody(body) {
-  const normalized = { ...body };
-  const tourFields = /* @__PURE__ */ new Set([
-    "title",
-    "slug",
-    "content",
-    "videoUrl",
-    "imageUrl",
-    "status",
-    "isFeatured",
-    "duration",
-    "minPeople",
-    "maxPeople",
-    "minDayBeforeBooking",
-    "itinerary",
-    "faqs",
-    "include",
-    "exclude",
-    "surroundings",
-    "mapLat",
-    "mapLng",
-    "mapZoom",
-    "realAddress",
-    "price",
-    "salePrice",
-    "extraPrices",
-    "serviceFees",
-    "personTypes",
-    "discountByPeople",
-    "fixedDates",
-    "openHours",
-    "locationId",
-    "authorId"
-  ]);
-  const mappings = {
-    "tour_title": "title",
-    "tour_slug": "slug",
-    "tour_content": "content",
-    "video_url": "videoUrl",
-    "image_url": "imageUrl",
-    "is_featured": "isFeatured",
-    "tour_duration": "duration",
-    "min_people": "minPeople",
-    "max_people": "maxPeople",
-    "min_day_before_booking": "minDayBeforeBooking",
-    "map_lat": "mapLat",
-    "map_lng": "mapLng",
-    "real_address": "realAddress",
-    "tour_price": "price",
-    "tour_sale_price": "salePrice",
-    "location_id": "locationId"
-  };
-  for (const [snakeKey, camelKey] of Object.entries(mappings)) {
-    if (body[snakeKey] !== void 0 && normalized[camelKey] === void 0 && tourFields.has(camelKey)) {
-      normalized[camelKey] = body[snakeKey];
-    }
-  }
-  return normalized;
+  return normalizeUpdateBody(body);
 }
-function rejectEmptyCarUpdate(input, res) {
-  if (Object.keys(input).length > 0) return true;
-  res.status(400).json({ message: "No valid car fields to update" });
-  return false;
+function normalizeCarBody(body) {
+  return normalizeUpdateBody(body);
 }
 function rejectEmptyTourUpdate(input, res) {
   if (Object.keys(input).length > 0) return true;
   res.status(400).json({ message: "No valid tour fields to update" });
+  return false;
+}
+function rejectEmptyCarUpdate(input, res) {
+  if (Object.keys(input).length > 0) return true;
+  res.status(400).json({ message: "No valid car fields to update" });
   return false;
 }
 function jaccardScore(aTokens, bTokens) {
@@ -66680,9 +67114,7 @@ async function registerRoutes(httpServer2, app2) {
   });
   app2.put(api.tours.update.path, async (req, res) => {
     try {
-      console.log("ROUTES PUT /api/tours/:id body:", req.body);
       const input = api.tours.update.input.parse(normalizeTourBody(req.body));
-      console.log("ROUTES parsed tourData:", input);
       if (!rejectEmptyTourUpdate(input, res)) return;
       const { attributeIds, ...tourData } = input;
       const currentTour = await storage.getTour(Number(req.params.id));
@@ -66691,7 +67123,6 @@ async function registerRoutes(httpServer2, app2) {
         await deleteOldImage(currentTour.imageUrl);
       }
       const tour = await storage.updateTour(Number(req.params.id), tourData);
-      console.log("ROUTES updateTour result:", tour);
       if (!tour) return res.status(404).json({ message: "Not found" });
       if (attributeIds !== void 0) {
         await db2.delete(tourAttributes).where((0, import_drizzle_orm3.eq)(tourAttributes.tourId, tour.id));
@@ -66702,11 +67133,10 @@ async function registerRoutes(httpServer2, app2) {
       }
       res.json(tour);
     } catch (e) {
-      console.error("ROUTES tour update error:", e);
       if (e instanceof z.ZodError) {
         return res.status(400).json({ message: e.errors[0].message, field: e.errors[0].path.join(".") });
       }
-      res.status(500).json({ message: "Internal Error", error: e.message });
+      res.status(500).json({ message: "Internal Error" });
     }
   });
   app2.delete(api.tours.delete.path, async (req, res) => {
@@ -66750,9 +67180,7 @@ async function registerRoutes(httpServer2, app2) {
   });
   app2.put(api.cars.update.path, async (req, res) => {
     try {
-      console.log("ROUTES PUT /api/cars/:id body:", req.body);
       const input = api.cars.update.input.parse(normalizeCarBody(req.body));
-      console.log("ROUTES parsed carData:", input);
       if (!rejectEmptyCarUpdate(input, res)) return;
       const { attributeIds, ...carData } = input;
       const currentCar = await storage.getCar(Number(req.params.id));
@@ -66761,7 +67189,6 @@ async function registerRoutes(httpServer2, app2) {
         await deleteOldImage(currentCar.imageUrl);
       }
       const car = await storage.updateCar(Number(req.params.id), carData);
-      console.log("ROUTES updateCar result:", car);
       if (!car) return res.status(404).json({ message: "Not found" });
       if (attributeIds !== void 0) {
         await db2.delete(carAttributes).where((0, import_drizzle_orm3.eq)(carAttributes.carId, car.id));
@@ -66772,11 +67199,10 @@ async function registerRoutes(httpServer2, app2) {
       }
       res.json(car);
     } catch (e) {
-      console.error("ROUTES car update error:", e);
       if (e instanceof z.ZodError) {
         return res.status(400).json({ message: e.errors[0].message, field: e.errors[0].path.join(".") });
       }
-      res.status(500).json({ message: "Internal Error", error: e.message });
+      res.status(500).json({ message: "Internal Error" });
     }
   });
   app2.delete(api.cars.delete.path, async (req, res) => {
@@ -67056,8 +67482,8 @@ async function registerRoutes(httpServer2, app2) {
       if (!["car", "tour"].includes(moduleType)) {
         return res.status(400).json({ message: 'Invalid moduleType. Must be "car" or "tour"' });
       }
-      const ratings2 = await storage.getRatings(moduleType, moduleId);
-      res.json(ratings2);
+      const ratings3 = await storage.getRatings(moduleType, moduleId);
+      res.json(ratings3);
     } catch (e) {
       console.error("Ratings list error:", e);
       res.status(500).json({ message: "Internal server error" });
@@ -67092,12 +67518,8 @@ async function registerRoutes(httpServer2, app2) {
     try {
       const id = Number(req.params.id);
       const input = api.ratings.update.input.parse(req.body);
-      const rating = await storage.getUserRating(
-        req.user.id,
-        req.body.moduleType,
-        Number(req.body.moduleId)
-      );
-      if (!rating || rating.id !== id) {
+      const rating = await storage.getRatingById(id);
+      if (!rating || rating.userId !== req.user.id) {
         return res.status(404).json({ message: "Rating not found or unauthorized" });
       }
       const updated = await storage.updateRating(id, input);
@@ -67113,12 +67535,8 @@ async function registerRoutes(httpServer2, app2) {
   app2.delete(api.ratings.delete.path, requireAuth, async (req, res) => {
     try {
       const id = Number(req.params.id);
-      const rating = await storage.getUserRating(
-        req.user.id,
-        req.body.moduleType,
-        Number(req.body.moduleId)
-      );
-      if (!rating || rating.id !== id) {
+      const rating = await storage.getRatingById(id);
+      if (!rating || rating.userId !== req.user.id) {
         return res.status(404).json({ message: "Rating not found or unauthorized" });
       }
       await storage.deleteRating(id);

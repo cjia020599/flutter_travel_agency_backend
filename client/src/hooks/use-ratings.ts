@@ -2,13 +2,14 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, buildUrl } from "@shared/routes";
 import { useToast } from "@/hooks/use-toast";
 import { z } from "zod";
+import { fetchWithAuth } from "@/lib/auth";
 
 export function useRatings(moduleType: 'car' | 'tour', moduleId: number) {
   return useQuery({
     queryKey: [api.ratings.listByModule.path, moduleType, moduleId],
     queryFn: async () => {
       const url = buildUrl(api.ratings.listByModule.path, { moduleType, moduleId });
-      const res = await fetch(url, { credentials: "include" });
+      const res = await fetchWithAuth(url);
       if (!res.ok) throw new Error("Failed to fetch ratings");
       return await res.json();
     },
@@ -28,11 +29,9 @@ export function useCreateRating() {
 
   return useMutation({
     mutationFn: async (data) => {
-      const res = await fetch(api.ratings.create.path, {
+      const res = await fetchWithAuth(api.ratings.create.path, {
         method: api.ratings.create.method,
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
-        credentials: "include",
       });
       if (!res.ok) {
         const error = await res.json();
@@ -57,11 +56,9 @@ export function useUpdateRating() {
   return useMutation({
     mutationFn: async ({ id, ...updates }) => {
       const url = buildUrl(api.ratings.update.path, { id });
-      const res = await fetch(url, {
+      const res = await fetchWithAuth(url, {
         method: api.ratings.update.method,
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(updates),
-        credentials: "include",
       });
       if (!res.ok) {
         const error = await res.json();
@@ -86,9 +83,8 @@ export function useDeleteRating() {
   return useMutation({
     mutationFn: async (id: number) => {
       const url = buildUrl(api.ratings.delete.path, { id });
-      const res = await fetch(url, { 
-        method: api.ratings.delete.method, 
-        credentials: "include" 
+      const res = await fetchWithAuth(url, { 
+        method: api.ratings.delete.method
       });
       if (!res.ok) throw new Error("Failed to delete rating");
     },
