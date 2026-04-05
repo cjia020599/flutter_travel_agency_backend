@@ -18,14 +18,9 @@ import{
   chatbotAskInputSchema,
 } from "@shared/schema";
 
-import { 
-  createRatingInputSchema, 
-  updateRatingInputSchema,
-  signToken, 
-  requireAuth, 
-  requireAdmin 
-} from "@shared/schema";
-import { eq, and, isNull, desc, sql } from "drizzle-orm";
+import { createRatingInputSchema, updateRatingInputSchema } from "@shared/schema";
+
+import { signToken, requireAuth, requireAdmin } from "./auth";
 import { eq, and, isNull, desc, sql } from "drizzle-orm";
 
 
