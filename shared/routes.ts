@@ -338,5 +338,29 @@ create: {
       responses: { 200: z.any() },
     },
   },
+  // Ratings
+  ratings: {
+    listByModule: {
+      path: "/api/ratings/:moduleType/:moduleId",
+      method: "GET" as const,
+      responses: { 200: z.array(z.object({} as Rating)) },
+    },
+    create: {
+      path: "/api/ratings",
+      method: "POST" as const,
+      input: createRatingInputSchema,
+      responses: { 201: z.object({} as Rating) },
+    },
+    update: {
+      path: "/api/ratings/:id",
+      method: "PUT" as const,
+      input: updateRatingInputSchema,
+      responses: { 200: z.object({} as Rating) },
+    },
+    delete: {
+      path: "/api/ratings/:id",
+      method: "DELETE" as const,
+    },
+  },
 } as const;
 

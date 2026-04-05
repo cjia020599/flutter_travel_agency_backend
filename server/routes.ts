@@ -17,6 +17,8 @@ import {
   createChatbotQuestionInputSchema,
   updateChatbotQuestionInputSchema,
   chatbotAskInputSchema,
+  createRatingInputSchema,
+  updateRatingInputSchema,
 } from "@shared/schema";
 
 
@@ -1257,6 +1259,105 @@ app.get('/api/reports/cars', requireAuth, async (req, res) => {
       res.json(notification);
     } catch (e) {
       console.error(e);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+// ===================== RATINGS =====================
+  // GET /api/ratings/:moduleType/:moduleId - List ratings for specific car/tour
+  app.get(api.ratings.listByModule.path, requireAuth, async (req, res) => {
+    try {
+      const moduleType = req.params.moduleType as 'car' | 'tour';
+      const moduleId = Number(req.params.moduleId);
+      
+      if (!['car', 'tour'].includes(moduleType)) {
+        return res.status(400).json({ message: 'Invalid moduleType. Must be "car" or "tour"' });
+      }
+      
+      const ratings = await storage.getRatings(moduleType, moduleId);
+      res.json(ratings);
+    } catch (e) {
+      console.error('Ratings list error:', e);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // POST /api/ratings - Create new rating
+  app.post(api.ratings.create.path, requireAuth, async (req, res) => {
+    try {
+      const input = api.ratings.create.input.parse(req.body);
+      console.log('Creating rating:', input);
+      
+      // Check if user already rated this item
+      const existing = await storage.getUserRating(
+        (req as any).user.id, 
+        input.moduleType, 
+        input.moduleId
+      );
+      if (existing) {
+        return res.status(400).json({ message: "User already rated this item" });
+      }
+      
+      const rating = await storage.createRating({
+        ...input,
+        userId: (req as any).user.id,
+      });
+      res.status(201).json(rating);
+    } catch (e) {
+      if (e instanceof z.ZodError) {
+        return res.status(400).json({ message: e.errors[0].message });
+      }
+      console.error('Rating create error:', e);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // PUT /api/ratings/:id - Update rating (user's own only)
+  app.put(api.ratings.update.path, requireAuth, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const input = api.ratings.update.input.parse(req.body);
+      
+      const rating = await storage.getUserRating(
+        (req as any).user.id,
+        req.body.moduleType as 'car' | 'tour', 
+        Number(req.body.moduleId)
+      );
+      
+      if (!rating || rating.id !== id) {
+        return res.status(404).json({ message: "Rating not found or unauthorized" });
+      }
+      
+      const updated = await storage.updateRating(id, input);
+      res.json(updated);
+    } catch (e) {
+      if (e instanceof z.ZodError) {
+        return res.status(400).json({ message: e.errors[0].message });
+      }
+      console.error('Rating update error:', e);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // DELETE /api/ratings/:id - Delete rating (user's own only)
+  app.delete(api.ratings.delete.path, requireAuth, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      
+      const rating = await storage.getUserRating(
+        (req as any).user.id,
+        req.body.moduleType as 'car' | 'tour', 
+        Number(req.body.moduleId)
+      );
+      
+      if (!rating || rating.id !== id) {
+        return res.status(404).json({ message: "Rating not found or unauthorized" });
+      }
+      
+      await storage.deleteRating(id);
+      res.status(204).end();
+    } catch (e) {
+      console.error('Rating delete error:', e);
       res.status(500).json({ message: "Internal server error" });
     }
   });

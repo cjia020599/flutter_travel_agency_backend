@@ -1,11 +1,11 @@
 import { db } from "./db";
 import {
-  locations, tours, cars, tourAttributes, carAttributes, attributes, bookings, notifications,
+  locations, tours, cars, tourAttributes, carAttributes, attributes, bookings, notifications, ratings,
   users, roles, vendorProfiles, chatbotQuestions,
   type Tour, type InsertTour,
   type Car, type InsertCar,
   type Booking, type InsertTourBooking, type TourBooking, type InsertCarRental, type CarRental,
-  type Location, type Attribute,
+  type Location, type Attribute, type Rating, type InsertRating,
   type InsertLocation, type InsertAttribute,
   type User, type InsertUser,
   type Role,
@@ -72,6 +72,13 @@ export interface IStorage {
   getTourBookings(filters?: { userId?: number }): Promise<TourBooking[]>;
   createTourBooking(booking: InsertTourBooking): Promise<Booking>;
   cancelTourBooking(id: number): Promise<void>;
+
+  // ---- Ratings ----
+  getRatings(moduleType: 'car' | 'tour', moduleId: number): Promise<Rating[]>;
+  getUserRating(userId: number, moduleType: 'car' | 'tour', moduleId: number): Promise<Rating | undefined>;
+  createRating(data: InsertRating): Promise<Rating>;
+  updateRating(id: number, updates: Partial<InsertRating>): Promise<Rating>;
+  deleteRating(id: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -133,6 +140,45 @@ export class DatabaseStorage implements IStorage {
 
   async deleteChatbotQuestion(id: number): Promise<void> {
     await db.delete(chatbotQuestions).where(eq(chatbotQuestions.id, id));
+  }
+
+  // ---- Ratings ----
+  async getRatings(moduleType: 'car' | 'tour', moduleId: number): Promise<Rating[]> {
+    return db.select().from(ratings).where(
+      and(
+        eq(ratings.moduleType, moduleType),
+        eq(ratings.moduleId, moduleId)
+      )
+    ).orderBy(desc(ratings.createdAt));
+  }
+
+  async getUserRating(userId: number, moduleType: 'car' | 'tour', moduleId: number): Promise<Rating | undefined> {
+    const [r] = await db.select().from(ratings).where(
+      and(
+        eq(ratings.userId, userId),
+        eq(ratings.moduleType, moduleType),
+        eq(ratings.moduleId, moduleId)
+      )
+    );
+    return r;
+  }
+
+  async createRating(data: InsertRating): Promise<Rating> {
+    const [r] = await db.insert(ratings).values(data).returning();
+    return r;
+  }
+
+  async updateRating(id: number, updates: Partial<InsertRating>): Promise<Rating> {
+    const [r] = await db.update(ratings).set({
+      ...updates,
+      updatedAt: new Date(),
+    }).where(eq(ratings.id, id)).returning();
+    if (!r) throw new Error(`Rating ${id} not found`);
+    return r;
+  }
+
+  async deleteRating(id: number): Promise<void> {
+    await db.delete(ratings).where(eq(ratings.id, id));
   }
 
   // ---- Tours ----
