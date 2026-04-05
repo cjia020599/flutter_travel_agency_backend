@@ -34,6 +34,17 @@ export const storage = new (class DatabaseStorage {
     ).orderBy(desc(schema.ratings.createdAt));
   }
 
+  async getUserRating(userId: number, moduleType: 'car' | 'tour', moduleId: number) {
+    const [r] = await db.select().from(schema.ratings).where(
+      and(
+        eq(schema.ratings.userId, userId),
+        eq(schema.ratings.moduleType, moduleType),
+        eq(schema.ratings.moduleId, moduleId)
+      )
+    );
+    return r;
+  }
+
   async getRatingById(id: number) {
     const [r] = await db.select().from(schema.ratings).where(eq(schema.ratings.id, id));
     return r;
