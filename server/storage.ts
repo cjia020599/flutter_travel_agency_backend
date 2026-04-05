@@ -580,6 +580,29 @@ export const storage = new (class DatabaseStorage {
   async cancelTourBooking(id: number): Promise<void> {
     await db.update(bookings).set({ status: "cancelled" }).where(eq(bookings.id, id));
   }
+
+  // ---- Notifications ----
+  async getUserNotifications(userId: number, input: { page: number; limit: number; unreadOnly: boolean }): Promise<Notification[]> {
+    let query = db.select().from(notifications).where(eq(notifications.userId, userId));
+    if (input.unreadOnly) {
+      query = query.where(isNull(notifications.readAt));
+    }
+    const offset = (input.page - 1) * input.limit;
+    return query
+      .orderBy(desc(notifications.createdAt))
+      .limit(input.limit)
+      .offset(offset);
+  }
+
+  async createNotification(notification: typeof notifications.$inferInsert): Promise<Notification> {
+    const [result] = await db.insert(notifications).values(notification).returning();
+    return result;
+  }
+
+  async markNotificationRead(id: number): Promise<Notification | undefined> {
+    const [result] = await db.update(notifications).set({ readAt: new Date() }).where(eq(notifications.id, id)).returning();
+    return result;
+  }
 }
 )
 
