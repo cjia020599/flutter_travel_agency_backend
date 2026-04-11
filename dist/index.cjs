@@ -59234,7 +59234,7 @@ __export(schema_exports, {
   media: () => media,
   notifications: () => notifications,
   ratings: () => ratings,
-  registerSchema: () => registerSchema2,
+  registerSchema: () => registerSchema,
   reportFiltersSchema: () => reportFiltersSchema,
   roles: () => roles,
   tourAttributes: () => tourAttributes,
@@ -63809,7 +63809,7 @@ var getNotificationsInputSchema = z.object({
   limit: z.coerce.number().min(1).max(100).default(20),
   unreadOnly: z.coerce.boolean().default(false)
 });
-var registerSchema2 = z.object({
+var registerSchema = z.object({
   firstName: z.string().min(1, "First name is required"),
   lastName: z.string().min(1, "Last name is required"),
   username: z.string().min(3, "Username must be at least 3 characters"),
@@ -66092,6 +66092,27 @@ var storage = new class DatabaseStorage {
     const [result] = await db.update(notifications).set({ readAt: /* @__PURE__ */ new Date() }).where((0, import_drizzle_orm2.eq)(notifications.id, id)).returning();
     return result;
   }
+  // ---- Chatbot Questions ----
+  async getChatbotQuestions() {
+    return db.select().from(chatbotQuestions);
+  }
+  async getActiveChatbotQuestions() {
+    return db.select().from(chatbotQuestions).where((0, import_drizzle_orm2.eq)(chatbotQuestions.active, true));
+  }
+  async createChatbotQuestion(data) {
+    const [result] = await db.insert(chatbotQuestions).values(data).returning();
+    return result;
+  }
+  async updateChatbotQuestion(id, updates) {
+    const [result] = await db.update(chatbotQuestions).set({
+      ...updates,
+      updatedAt: /* @__PURE__ */ new Date()
+    }).where((0, import_drizzle_orm2.eq)(chatbotQuestions.id, id)).returning();
+    return result;
+  }
+  async deleteChatbotQuestion(id) {
+    await db.delete(chatbotQuestions).where((0, import_drizzle_orm2.eq)(chatbotQuestions.id, id));
+  }
 }();
 
 // shared/routes.ts
@@ -66101,7 +66122,7 @@ var api = {
     register: {
       path: "/api/auth/register",
       method: "POST",
-      input: registerSchema2,
+      input: registerSchema,
       responses: {
         201: z.object({ token: z.string(), user: z.object({}) }),
         400: z.object({ message: z.string() })
@@ -66882,25 +66903,34 @@ async function registerRoutes(httpServer2, app2) {
   app2.post(api.auth.register.path, async (req, res) => {
     try {
       const input = registerSchema.parse(req.body);
-      const existing = await storage.getUserByEmail(input.email);
+      const normalizedInput = {
+        ...input,
+        email: input.email.trim().toLowerCase(),
+        username: input.username.trim(),
+        businessName: input.businessName?.trim()
+      };
+      if (normalizedInput.role === "vendor" && !normalizedInput.businessName) {
+        return res.status(400).json({ message: "Business name is required for vendor accounts" });
+      }
+      const existing = await storage.getUserByEmail(normalizedInput.email);
       if (existing) return res.status(400).json({ message: "Email already registered" });
-      const existingUsername = await storage.getUserByUsername(input.username);
+      const existingUsername = await storage.getUserByUsername(normalizedInput.username);
       if (existingUsername) return res.status(400).json({ message: "Username already taken" });
-      const role = await storage.getRoleByCode(input.role);
+      const role = await storage.getRoleByCode(normalizedInput.role);
       if (!role) return res.status(400).json({ message: "Invalid role" });
-      const hashedPassword = await bcryptjs_default.hash(input.password, 10);
+      const hashedPassword = await bcryptjs_default.hash(normalizedInput.password, 10);
       const user = await storage.createUser({
-        firstName: input.firstName,
-        lastName: input.lastName,
-        username: input.username,
-        email: input.email,
+        firstName: normalizedInput.firstName,
+        lastName: normalizedInput.lastName,
+        username: normalizedInput.username,
+        email: normalizedInput.email,
         password: hashedPassword,
         roleId: role.id
       });
-      if (input.role === "vendor" && input.businessName) {
+      if (normalizedInput.role === "vendor") {
         await storage.createVendorProfile({
           userId: user.id,
-          businessName: input.businessName,
+          businessName: normalizedInput.businessName,
           commissionType: "default",
           commissionValue: "0"
         });
@@ -66912,7 +66942,16 @@ async function registerRoutes(httpServer2, app2) {
       if (e instanceof z.ZodError) {
         return res.status(400).json({ message: e.errors[0].message, field: e.errors[0].path.join(".") });
       }
-      console.error(e);
+      console.error("Registration error:", e);
+      if (typeof e === "object" && e !== null && "code" in e && e.code === "23505") {
+        const constraint = e.constraint;
+        if (constraint?.includes("users_email")) {
+          return res.status(400).json({ message: "Email already registered" });
+        }
+        if (constraint?.includes("users_username")) {
+          return res.status(400).json({ message: "Username already taken" });
+        }
+      }
       return res.status(500).json({ message: "Internal server error" });
     }
   });

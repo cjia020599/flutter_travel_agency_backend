@@ -1,24 +1,15 @@
 import type { Express, Response } from "express";
 import WebSocket from 'ws';
 import jwt from 'jsonwebtoken';
-import { tourAttributes, carAttributes, roles, locations, attributes, tours, cars, bookings, notifications, eq, Rating } from "@shared/schema";
+import { tourAttributes, carAttributes, roles, locations, attributes, tours, cars, bookings, notifications } from "@shared/schema";
+import type { Rating } from "@shared/schema";
+import { registerSchema, loginSchema, updateProfileSchema, reportFiltersSchema, createNotificationInputSchema, getNotificationsInputSchema, createChatbotQuestionInputSchema, updateChatbotQuestionInputSchema, chatbotAskInputSchema, createRatingInputSchema, updateRatingInputSchema } from "@shared/schema";
 import type { Server } from "http";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { storage } from "./storage";
 import { api } from "@shared/routes";
-import{
-  loginSchema,
-  updateProfileSchema,
-  reportFiltersSchema,
-  getNotificationsInputSchema,
-  createNotificationInputSchema,
-  createChatbotQuestionInputSchema,
-  updateChatbotQuestionInputSchema,
-  chatbotAskInputSchema,
-  createRatingInputSchema,
-  updateRatingInputSchema,
-} from "@shared/schema";
+
 
 import { signToken, requireAuth, requireAdmin } from "./auth";
 import { eq, and, isNull, desc, sql } from "drizzle-orm";
@@ -492,30 +483,40 @@ export async function registerRoutes(
   app.post(api.auth.register.path, async (req, res) => {
     try {
       const input = registerSchema.parse(req.body);
+      const normalizedInput = {
+        ...input,
+        email: input.email.trim().toLowerCase(),
+        username: input.username.trim(),
+        businessName: input.businessName?.trim(),
+      };
 
-      const existing = await storage.getUserByEmail(input.email);
+      if (normalizedInput.role === "vendor" && !normalizedInput.businessName) {
+        return res.status(400).json({ message: "Business name is required for vendor accounts" });
+      }
+
+      const existing = await storage.getUserByEmail(normalizedInput.email);
       if (existing) return res.status(400).json({ message: "Email already registered" });
 
-      const existingUsername = await storage.getUserByUsername(input.username);
+      const existingUsername = await storage.getUserByUsername(normalizedInput.username);
       if (existingUsername) return res.status(400).json({ message: "Username already taken" });
 
-      const role = await storage.getRoleByCode(input.role);
+      const role = await storage.getRoleByCode(normalizedInput.role);
       if (!role) return res.status(400).json({ message: "Invalid role" });
 
-      const hashedPassword = await bcrypt.hash(input.password, 10);
+      const hashedPassword = await bcrypt.hash(normalizedInput.password, 10);
       const user = await storage.createUser({
-        firstName: input.firstName,
-        lastName: input.lastName,
-        username: input.username,
-        email: input.email,
+        firstName: normalizedInput.firstName,
+        lastName: normalizedInput.lastName,
+        username: normalizedInput.username,
+        email: normalizedInput.email,
         password: hashedPassword,
         roleId: role.id,
       });
 
-      if (input.role === "vendor" && input.businessName) {
+      if (normalizedInput.role === "vendor") {
         await storage.createVendorProfile({
           userId: user.id,
-          businessName: input.businessName,
+          businessName: normalizedInput.businessName!,
           commissionType: "default",
           commissionValue: "0",
         });
@@ -528,7 +529,18 @@ export async function registerRoutes(
       if (e instanceof z.ZodError) {
         return res.status(400).json({ message: e.errors[0].message, field: e.errors[0].path.join(".") });
       }
-      console.error(e);
+
+      console.error("Registration error:", e);
+      if (typeof e === "object" && e !== null && "code" in e && (e as any).code === "23505") {
+        const constraint = (e as any).constraint;
+        if (constraint?.includes("users_email")) {
+          return res.status(400).json({ message: "Email already registered" });
+        }
+        if (constraint?.includes("users_username")) {
+          return res.status(400).json({ message: "Username already taken" });
+        }
+      }
+
       return res.status(500).json({ message: "Internal server error" });
     }
   });
