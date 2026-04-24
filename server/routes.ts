@@ -1,7 +1,7 @@
 import type { Express, Response } from "express";
 import WebSocket from 'ws';
 import jwt from 'jsonwebtoken';
-import { tourAttributes, carAttributes, roles, locations, attributes, tours, cars, bookings, notifications } from "@shared/schema";
+import { tourAttributes, carAttributes, roles, locations, attributes, attributeTerms, categories, tours, cars, bookings, notifications } from "@shared/schema";
 import type { Rating } from "@shared/schema";
 import { registerSchema, loginSchema, updateProfileSchema, reportFiltersSchema, createNotificationInputSchema, getNotificationsInputSchema, createChatbotQuestionInputSchema, updateChatbotQuestionInputSchema, chatbotAskInputSchema, createRatingInputSchema, updateRatingInputSchema } from "@shared/schema";
 import type { Server } from "http";
@@ -103,7 +103,36 @@ function normalizeUpdateBody(body: Record<string, unknown>) {
 }
 
 function normalizeTourBody(body: Record<string, unknown>) {
-  return normalizeUpdateBody(body);
+  const normalized = normalizeUpdateBody(body);
+
+  if (normalized.fixedDateEnabled !== undefined && normalized.fixedDates === undefined) {
+    normalized.fixedDates = normalized.fixedDateEnabled;
+  }
+  if (normalized.enableFixedDate !== undefined && normalized.fixedDates === undefined) {
+    normalized.fixedDates = normalized.enableFixedDate;
+  }
+  if (normalized.enableServiceFee !== undefined && normalized.serviceFeeEnabled === undefined) {
+    normalized.serviceFeeEnabled = normalized.enableServiceFee;
+  }
+  if (normalized.enableOpenHours !== undefined && normalized.openHoursEnabled === undefined) {
+    normalized.openHoursEnabled = normalized.enableOpenHours;
+  }
+  const surroundingsEducation = normalized.surroundingsEducation;
+  const surroundingsHealth = normalized.surroundingsHealth;
+  const surroundingsTransportation = normalized.surroundingsTransportation;
+  if (
+    normalized.surroundings === undefined &&
+    (surroundingsEducation !== undefined ||
+      surroundingsHealth !== undefined ||
+      surroundingsTransportation !== undefined)
+  ) {
+    normalized.surroundings = {
+      education: surroundingsEducation ?? [],
+      health: surroundingsHealth ?? [],
+      transportation: surroundingsTransportation ?? [],
+    };
+  }
+  return normalized;
 }
 
 function normalizeCarBody(body: Record<string, unknown>) {
@@ -473,10 +502,45 @@ async function resolveLocationIdForUser(user?: { city?: string | null; country?:
   return null;
 }
 
+async function ensureAdminSchema() {
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS categories (
+      id SERIAL PRIMARY KEY,
+      name TEXT NOT NULL,
+      slug TEXT NOT NULL UNIQUE,
+      parent_id INTEGER,
+      status TEXT NOT NULL DEFAULT 'publish',
+      created_at TIMESTAMP DEFAULT NOW()
+    );
+  `);
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS attribute_terms (
+      id SERIAL PRIMARY KEY,
+      attribute_id INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      slug TEXT,
+      created_at TIMESTAMP DEFAULT NOW()
+    );
+  `);
+  await db.execute(sql`ALTER TABLE tours ADD COLUMN IF NOT EXISTS banner_image_url TEXT;`);
+  await db.execute(sql`ALTER TABLE tours ADD COLUMN IF NOT EXISTS banner_image_public_id TEXT;`);
+  await db.execute(sql`ALTER TABLE tours ADD COLUMN IF NOT EXISTS gallery JSONB;`);
+  await db.execute(sql`ALTER TABLE tours ADD COLUMN IF NOT EXISTS meta_title TEXT;`);
+  await db.execute(sql`ALTER TABLE tours ADD COLUMN IF NOT EXISTS meta_description TEXT;`);
+  await db.execute(sql`ALTER TABLE tours ADD COLUMN IF NOT EXISTS service_fee_enabled BOOLEAN DEFAULT FALSE;`);
+  await db.execute(sql`ALTER TABLE tours ADD COLUMN IF NOT EXISTS open_hours_enabled BOOLEAN DEFAULT FALSE;`);
+  await db.execute(sql`ALTER TABLE attributes ADD COLUMN IF NOT EXISTS slug TEXT;`);
+  await db.execute(sql`ALTER TABLE attributes ADD COLUMN IF NOT EXISTS position_order INTEGER DEFAULT 0;`);
+  await db.execute(sql`ALTER TABLE attributes ADD COLUMN IF NOT EXISTS hide_in_detail BOOLEAN DEFAULT FALSE;`);
+  await db.execute(sql`ALTER TABLE attributes ADD COLUMN IF NOT EXISTS hide_in_filter BOOLEAN DEFAULT FALSE;`);
+  await db.execute(sql`ALTER TABLE attributes ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW();`);
+}
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
+  await ensureAdminSchema();
 
   // ===================== AUTH =====================
 
@@ -827,6 +891,22 @@ app.post('/api/upload/image', requireAuth, upload.fields([{ name: 'image', maxCo
     res.status(204).end();
   });
 
+  app.get(api.tours.recovery.list.path, requireAuth, requireAdmin, async (_req, res) => {
+    const deleted = await storage.getDeletedTours();
+    res.json(deleted);
+  });
+
+  app.patch(api.tours.recovery.restore.path, requireAuth, requireAdmin, async (req, res) => {
+    const restored = await storage.restoreTour(Number(req.params.id));
+    if (!restored) return res.status(404).json({ message: "Not found" });
+    res.json(restored);
+  });
+
+  app.delete(api.tours.recovery.forceDelete.path, requireAuth, requireAdmin, async (req, res) => {
+    await storage.forceDeleteTour(Number(req.params.id));
+    res.status(204).end();
+  });
+
   // ===================== CARS =====================
 
   app.get(api.cars.list.path, async (req, res) => {
@@ -918,13 +998,116 @@ app.post('/api/upload/image', requireAuth, upload.fields([{ name: 'image', maxCo
     res.json(await storage.getAttributes());
   });
 
+  app.post(api.attributes.create.path, requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const input = api.attributes.create.input.parse(req.body);
+      const created = await storage.createAttribute(input);
+      res.status(201).json(created);
+    } catch (e) {
+      if (e instanceof z.ZodError) {
+        return res.status(400).json({ message: e.errors[0].message, field: e.errors[0].path.join(".") });
+      }
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.put(api.attributes.update.path, requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const input = api.attributes.update.input.parse(req.body);
+      const updated = await storage.updateAttribute(id, input);
+      if (!updated) return res.status(404).json({ message: "Not found" });
+      res.json(updated);
+    } catch (e) {
+      if (e instanceof z.ZodError) {
+        return res.status(400).json({ message: e.errors[0].message, field: e.errors[0].path.join(".") });
+      }
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.delete(api.attributes.delete.path, requireAuth, requireAdmin, async (req, res) => {
+    await storage.deleteAttribute(Number(req.params.id));
+    res.status(204).end();
+  });
+
+  app.get(api.attributes.terms.list.path, async (req, res) => {
+    const attributeId = Number(req.params.id);
+    res.json(await storage.getAttributeTerms(attributeId));
+  });
+
+  app.post(api.attributes.terms.create.path, requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const attributeId = Number(req.params.id);
+      const input = api.attributes.terms.create.input.parse(req.body);
+      const created = await storage.createAttributeTerm({
+        attributeId,
+        name: input.name,
+        slug: input.slug,
+      });
+      res.status(201).json(created);
+    } catch (e) {
+      if (e instanceof z.ZodError) {
+        return res.status(400).json({ message: e.errors[0].message, field: e.errors[0].path.join(".") });
+      }
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.delete(api.attributes.terms.delete.path, requireAuth, requireAdmin, async (req, res) => {
+    await storage.deleteAttributeTerm(Number(req.params.termId));
+    res.status(204).end();
+  });
+
+  app.get(api.categories.list.path, async (_req, res) => {
+    res.json(await storage.getCategories());
+  });
+
+  app.post(api.categories.create.path, requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const input = api.categories.create.input.parse(req.body);
+      const created = await storage.createCategory({
+        ...input,
+        parentId: input.parentId ?? null,
+        status: input.status ?? "publish",
+      });
+      res.status(201).json(created);
+    } catch (e) {
+      if (e instanceof z.ZodError) {
+        return res.status(400).json({ message: e.errors[0].message, field: e.errors[0].path.join(".") });
+      }
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.put(api.categories.update.path, requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const input = api.categories.update.input.parse(req.body);
+      const updated = await storage.updateCategory(id, input);
+      if (!updated) return res.status(404).json({ message: "Not found" });
+      res.json(updated);
+    } catch (e) {
+      if (e instanceof z.ZodError) {
+        return res.status(400).json({ message: e.errors[0].message, field: e.errors[0].path.join(".") });
+      }
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.delete(api.categories.delete.path, requireAuth, requireAdmin, async (req, res) => {
+    await storage.deleteCategory(Number(req.params.id));
+    res.status(204).end();
+  });
+
   // ===================== CAR RENTALS =====================
   app.get(api.carRentals.list.path, requireAuth, async (req, res) => {
+    const viewer = (req as any).user;
     const userId = req.query.userId ? Number(req.query.userId) : undefined;
-    if (userId && userId !== (req as any).user.id) {
+    if (userId && userId !== viewer.id && viewer.roleCode !== "administrator") {
       return res.status(403).json({ message: "Unauthorized to view other user's rentals" });
     }
-    const rentals = await storage.getCarRentals({ userId: (req as any).user.id });
+    const rentals = await storage.getCarRentals({ userId: viewer.roleCode === "administrator" ? userId : viewer.id });
     res.json(rentals);
   });
 
@@ -1009,12 +1192,12 @@ app.get('/api/reports/cars', requireAuth, async (req, res) => {
 
   // ===================== TOUR BOOKINGS =====================
   app.get(api.tourBookings!.list.path, requireAuth, async (req, res) => {
-
+    const viewer = (req as any).user;
     const userId = req.query.userId ? Number(req.query.userId) : undefined;
-    if (userId && userId !== (req as any).user.id) {
+    if (userId && userId !== viewer.id && viewer.roleCode !== "administrator") {
       return res.status(403).json({ message: "Unauthorized to view other user's bookings" });
     }
-    const bookings = await storage.getTourBookings({ userId: (req as any).user.id });
+    const bookings = await storage.getTourBookings({ userId: viewer.roleCode === "administrator" ? userId : viewer.id });
     res.json(bookings);
   });
 

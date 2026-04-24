@@ -1,7 +1,7 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import { eq, and, isNull, count, sum, avg, sql, desc } from "drizzle-orm";
 import * as schema from "@shared/schema";
-import { roles, users, vendorProfiles, tours, cars, locations, attributes, bookings, ratings, notifications } from "@shared/schema";
+import { roles, users, vendorProfiles, tours, cars, locations, attributes, attributeTerms, categories, bookings, ratings, notifications } from "@shared/schema";
 import pg from "pg";
 
 const { Pool } = pg;
@@ -87,6 +87,16 @@ export const storage = new (class DatabaseStorage {
   async deleteTour(id: number): Promise<void> {
     await db.update(tours).set({ deletedAt: new Date() }).where(eq(tours.id, id));
   }
+  async getDeletedTours(): Promise<Tour[]> {
+    return db.select().from(tours).where(sql`${tours.deletedAt} is not null`);
+  }
+  async restoreTour(id: number): Promise<Tour | undefined> {
+    const [r] = await db.update(tours).set({ deletedAt: null }).where(eq(tours.id, id)).returning();
+    return r;
+  }
+  async forceDeleteTour(id: number): Promise<void> {
+    await db.delete(tours).where(eq(tours.id, id));
+  }
 
   // ---- Cars ----
   async getCars(): Promise<Car[]> {
@@ -114,6 +124,43 @@ export const storage = new (class DatabaseStorage {
   }
   async getAttributes(): Promise<Attribute[]> {
     return db.select().from(attributes);
+  }
+  async createAttribute(data: InsertAttribute): Promise<Attribute> {
+    const [r] = await db.insert(attributes).values(data).returning();
+    return r;
+  }
+  async updateAttribute(id: number, updates: Partial<InsertAttribute>): Promise<Attribute | undefined> {
+    const [r] = await db.update(attributes).set(updates).where(eq(attributes.id, id)).returning();
+    return r;
+  }
+  async deleteAttribute(id: number): Promise<void> {
+    await db.delete(attributes).where(eq(attributes.id, id));
+  }
+
+  async getAttributeTerms(attributeId: number): Promise<AttributeTerm[]> {
+    return db.select().from(attributeTerms).where(eq(attributeTerms.attributeId, attributeId));
+  }
+  async createAttributeTerm(term: InsertAttributeTerm): Promise<AttributeTerm> {
+    const [r] = await db.insert(attributeTerms).values(term).returning();
+    return r;
+  }
+  async deleteAttributeTerm(termId: number): Promise<void> {
+    await db.delete(attributeTerms).where(eq(attributeTerms.id, termId));
+  }
+
+  async getCategories(): Promise<Category[]> {
+    return db.select().from(categories);
+  }
+  async createCategory(data: InsertCategory): Promise<Category> {
+    const [r] = await db.insert(categories).values(data).returning();
+    return r;
+  }
+  async updateCategory(id: number, updates: Partial<InsertCategory>): Promise<Category | undefined> {
+    const [r] = await db.update(categories).set(updates).where(eq(categories.id, id)).returning();
+    return r;
+  }
+  async deleteCategory(id: number): Promise<void> {
+    await db.delete(categories).where(eq(categories.id, id));
   }
 
   // ---- Users ----

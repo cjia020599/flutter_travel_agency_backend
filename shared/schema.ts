@@ -65,6 +65,28 @@ export const attributes = pgTable("attributes", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
   type: text("type").notNull(),
+  slug: text("slug"),
+  positionOrder: integer("position_order").default(0),
+  hideInDetail: boolean("hide_in_detail").default(false),
+  hideInFilter: boolean("hide_in_filter").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const attributeTerms = pgTable("attribute_terms", {
+  id: serial("id").primaryKey(),
+  attributeId: integer("attribute_id").notNull(),
+  name: text("name").notNull(),
+  slug: text("slug"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const categories = pgTable("categories", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  slug: text("slug").notNull().unique(),
+  parentId: integer("parent_id"),
+  status: text("status").notNull().default("publish"),
+  createdAt: timestamp("created_at").defaultNow(),
 });
 
 // ==================== TOURS ====================
@@ -76,6 +98,11 @@ export const tours = pgTable("tours", {
   categoryId: integer("category_id"),
   videoUrl: text("video_url"),
   imageUrl: text("image_url"),
+  bannerImageUrl: text("banner_image_url"),
+  bannerImagePublicId: text("banner_image_public_id"),
+  gallery: jsonb("gallery"),
+  metaTitle: text("meta_title"),
+  metaDescription: text("meta_description"),
   status: text("status").notNull().default("draft"),
   isFeatured: boolean("is_featured").default(false),
   authorId: integer("author_id"),
@@ -96,9 +123,11 @@ export const tours = pgTable("tours", {
   salePrice: decimal("sale_price", { precision: 10, scale: 2 }),
   extraPrices: jsonb("extra_prices"),
   serviceFees: jsonb("service_fees"),
+  serviceFeeEnabled: boolean("service_fee_enabled").default(false),
   personTypes: jsonb("person_types"),
   discountByPeople: jsonb("discount_by_people"),
   fixedDates: boolean("fixed_dates").default(false),
+  openHoursEnabled: boolean("open_hours_enabled").default(false),
   openHours: jsonb("open_hours"),
   locationId: integer("location_id"),
   deletedAt: timestamp("deleted_at"),
@@ -192,6 +221,8 @@ export const insertVendorProfileSchema = createInsertSchema(vendorProfiles).omit
 export const insertLocationSchema = createInsertSchema(locations).omit({ id: true, deletedAt: true });
 export const insertMediaSchema = createInsertSchema(media).omit({ id: true });
 export const insertAttributeSchema = createInsertSchema(attributes).omit({ id: true });
+export const insertAttributeTermSchema = createInsertSchema(attributeTerms).omit({ id: true, createdAt: true });
+export const insertCategorySchema = createInsertSchema(categories).omit({ id: true, createdAt: true });
 export const insertTourSchema = createInsertSchema(tours).omit({ id: true, deletedAt: true });
 export const insertCarSchema = createInsertSchema(cars).omit({ id: true, deletedAt: true });
 export const insertBookingSchema = createInsertSchema(bookings).omit({ id: true }).extend({
@@ -326,6 +357,8 @@ export type VendorProfile = typeof vendorProfiles.$inferSelect;
 export type Location = typeof locations.$inferSelect;
 export type Media = typeof media.$inferSelect;
 export type Attribute = typeof attributes.$inferSelect;
+export type AttributeTerm = typeof attributeTerms.$inferSelect;
+export type Category = typeof categories.$inferSelect;
 export type Tour = typeof tours.$inferSelect;
 export type Car = typeof cars.$inferSelect;
 export type Booking = typeof bookings.$inferSelect;
@@ -351,6 +384,8 @@ export type InsertVendorProfile = z.infer<typeof insertVendorProfileSchema>;
 export type InsertLocation = z.infer<typeof insertLocationSchema>;
 export type InsertMedia = z.infer<typeof insertMediaSchema>;
 export type InsertAttribute = z.infer<typeof insertAttributeSchema>;
+export type InsertAttributeTerm = z.infer<typeof insertAttributeTermSchema>;
+export type InsertCategory = z.infer<typeof insertCategorySchema>;
 export type InsertTour = z.infer<typeof insertTourSchema>;
 export type InsertCar = z.infer<typeof insertCarSchema>;
 export type InsertBooking = z.infer<typeof insertBookingSchema>;

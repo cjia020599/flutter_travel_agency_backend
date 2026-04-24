@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { RegisterInput, LoginInput, UpdateProfileInput, Tour, Car, Location, Attribute, AuthUser, ChatbotQuestion, Rating } from "./schema";
+import type { RegisterInput, LoginInput, UpdateProfileInput, Tour, Car, Location, Attribute, AttributeTerm, Category, AuthUser, ChatbotQuestion, Rating } from "./schema";
 import {
   registerSchema,
   loginSchema,
@@ -82,6 +82,11 @@ export const api = {
         categoryId: z.number().optional(),
         videoUrl: z.string().optional(),
         imageUrl: z.string().optional(),
+        bannerImageUrl: z.string().optional(),
+        bannerImagePublicId: z.string().optional(),
+        gallery: z.array(z.string()).optional(),
+        metaTitle: z.string().optional(),
+        metaDescription: z.string().optional(),
         status: z.string(),
         isFeatured: z.boolean().optional(),
         duration: z.number().optional(),
@@ -101,9 +106,11 @@ export const api = {
         salePrice: z.string().optional(),
         extraPrices: z.any().optional(),
         serviceFees: z.any().optional(),
+        serviceFeeEnabled: z.boolean().optional(),
         personTypes: z.any().optional(),
         discountByPeople: z.any().optional(),
         fixedDates: z.boolean().optional(),
+        openHoursEnabled: z.boolean().optional(),
         openHours: z.any().optional(),
         locationId: z.number().optional(),
         attributeIds: z.array(z.number()).optional(),
@@ -123,6 +130,11 @@ export const api = {
         categoryId: z.number().optional(),
         videoUrl: z.string().optional(),
         imageUrl: z.string().optional(),
+        bannerImageUrl: z.string().optional(),
+        bannerImagePublicId: z.string().optional(),
+        gallery: z.array(z.string()).optional(),
+        metaTitle: z.string().optional(),
+        metaDescription: z.string().optional(),
         status: z.string().optional(),
         isFeatured: z.boolean().optional(),
         duration: z.number().optional(),
@@ -142,9 +154,11 @@ export const api = {
         salePrice: z.string().optional(),
         extraPrices: z.any().optional(),
         serviceFees: z.any().optional(),
+        serviceFeeEnabled: z.boolean().optional(),
         personTypes: z.any().optional(),
         discountByPeople: z.any().optional(),
         fixedDates: z.boolean().optional(),
+        openHoursEnabled: z.boolean().optional(),
         openHours: z.any().optional(),
         locationId: z.number().optional(),
         attributeIds: z.array(z.number()).optional(),
@@ -154,6 +168,22 @@ export const api = {
     delete: {
       path: "/api/tours/:id",
       method: "DELETE" as const,
+    },
+    recovery: {
+      list: {
+        path: "/api/tours/recovery/deleted",
+        method: "GET" as const,
+        responses: { 200: z.array(z.object({} as Tour)) },
+      },
+      restore: {
+        path: "/api/tours/recovery/:id/restore",
+        method: "PATCH" as const,
+        responses: { 200: z.object({} as Tour) },
+      },
+      forceDelete: {
+        path: "/api/tours/recovery/:id",
+        method: "DELETE" as const,
+      },
     },
   },
   // Cars
@@ -256,6 +286,86 @@ export const api = {
       path: "/api/attributes",
       method: "GET" as const,
       responses: { 200: z.array(z.object({} as Attribute)) },
+    },
+    create: {
+      path: "/api/attributes",
+      method: "POST" as const,
+      input: z.object({
+        name: z.string().min(1),
+        type: z.string().min(1),
+        slug: z.string().optional(),
+        positionOrder: z.number().optional(),
+        hideInDetail: z.boolean().optional(),
+        hideInFilter: z.boolean().optional(),
+      }),
+      responses: { 201: z.object({} as Attribute) },
+    },
+    update: {
+      path: "/api/attributes/:id",
+      method: "PUT" as const,
+      input: z.object({
+        name: z.string().optional(),
+        type: z.string().optional(),
+        slug: z.string().optional(),
+        positionOrder: z.number().optional(),
+        hideInDetail: z.boolean().optional(),
+        hideInFilter: z.boolean().optional(),
+      }),
+      responses: { 200: z.object({} as Attribute) },
+    },
+    delete: {
+      path: "/api/attributes/:id",
+      method: "DELETE" as const,
+    },
+    terms: {
+      list: {
+        path: "/api/attributes/:id/terms",
+        method: "GET" as const,
+        responses: { 200: z.array(z.object({} as AttributeTerm)) },
+      },
+      create: {
+        path: "/api/attributes/:id/terms",
+        method: "POST" as const,
+        input: z.object({ name: z.string().min(1), slug: z.string().optional() }),
+        responses: { 201: z.object({} as AttributeTerm) },
+      },
+      delete: {
+        path: "/api/attribute-terms/:termId",
+        method: "DELETE" as const,
+      },
+    },
+  },
+  categories: {
+    list: {
+      path: "/api/categories",
+      method: "GET" as const,
+      responses: { 200: z.array(z.object({} as Category)) },
+    },
+    create: {
+      path: "/api/categories",
+      method: "POST" as const,
+      input: z.object({
+        name: z.string().min(1),
+        slug: z.string().min(1),
+        parentId: z.number().nullable().optional(),
+        status: z.string().optional(),
+      }),
+      responses: { 201: z.object({} as Category) },
+    },
+    update: {
+      path: "/api/categories/:id",
+      method: "PUT" as const,
+      input: z.object({
+        name: z.string().optional(),
+        slug: z.string().optional(),
+        parentId: z.number().nullable().optional(),
+        status: z.string().optional(),
+      }),
+      responses: { 200: z.object({} as Category) },
+    },
+    delete: {
+      path: "/api/categories/:id",
+      method: "DELETE" as const,
     },
   },
   // Admin
