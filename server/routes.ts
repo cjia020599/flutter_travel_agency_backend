@@ -1773,12 +1773,111 @@ app.get('/api/reports/cars', requireAuth, async (req, res) => {
       }
 
       const existingLocs = await storage.getLocations();
+      const phLocations = [
+        { name: "Abra", slug: "abra" },
+        { name: "Agusan del Norte", slug: "agusan-del-norte" },
+        { name: "Agusan del Sur", slug: "agusan-del-sur" },
+        { name: "Aklan", slug: "aklan" },
+        { name: "Albay", slug: "albay" },
+        { name: "Antique", slug: "antique" },
+        { name: "Apayao", slug: "apayao" },
+        { name: "Aurora", slug: "aurora" },
+        { name: "Basilan", slug: "basilan" },
+        { name: "Bataan", slug: "bataan" },
+        { name: "Batanes", slug: "batanes" },
+        { name: "Batangas", slug: "batangas" },
+        { name: "Benguet", slug: "benguet" },
+        { name: "Biliran", slug: "biliran" },
+        { name: "Bohol", slug: "bohol" },
+        { name: "Bukidnon", slug: "bukidnon" },
+        { name: "Bulacan", slug: "bulacan" },
+        { name: "Cagayan", slug: "cagayan" },
+        { name: "Camarines Norte", slug: "camarines-norte" },
+        { name: "Camarines Sur", slug: "camarines-sur" },
+        { name: "Camiguin", slug: "camiguin" },
+        { name: "Capiz", slug: "capiz" },
+        { name: "Catanduanes", slug: "catanduanes" },
+        { name: "Cavite", slug: "cavite" },
+        { name: "Cebu", slug: "cebu" },
+        { name: "Cotabato", slug: "cotabato" },
+        { name: "Davao de Oro", slug: "davao-de-oro" },
+        { name: "Davao del Norte", slug: "davao-del-norte" },
+        { name: "Davao del Sur", slug: "davao-del-sur" },
+        { name: "Davao Occidental", slug: "davao-occidental" },
+        { name: "Davao Oriental", slug: "davao-oriental" },
+        { name: "Dinagat Islands", slug: "dinagat-islands" },
+        { name: "Eastern Samar", slug: "eastern-samar" },
+        { name: "Guimaras", slug: "guimaras" },
+        { name: "Ifugao", slug: "ifugao" },
+        { name: "Ilocos Norte", slug: "ilocos-norte" },
+        { name: "Ilocos Sur", slug: "ilocos-sur" },
+        { name: "Iloilo", slug: "iloilo" },
+        { name: "Isabela", slug: "isabela" },
+        { name: "Kalinga", slug: "kalinga" },
+        { name: "La Union", slug: "la-union" },
+        { name: "Laguna", slug: "laguna" },
+        { name: "Lanao del Norte", slug: "lanao-del-norte" },
+        { name: "Lanao del Sur", slug: "lanao-del-sur" },
+        { name: "Leyte", slug: "leyte" },
+        { name: "Maguindanao del Norte", slug: "maguindanao-del-norte" },
+        { name: "Maguindanao del Sur", slug: "maguindanao-del-sur" },
+        { name: "Marinduque", slug: "marinduque" },
+        { name: "Masbate", slug: "masbate" },
+        { name: "Metro Manila", slug: "metro-manila" },
+        { name: "Misamis Occidental", slug: "misamis-occidental" },
+        { name: "Misamis Oriental", slug: "misamis-oriental" },
+        { name: "Mountain Province", slug: "mountain-province" },
+        { name: "Negros Occidental", slug: "negros-occidental" },
+        { name: "Negros Oriental", slug: "negros-oriental" },
+        { name: "Northern Samar", slug: "northern-samar" },
+        { name: "Nueva Ecija", slug: "nueva-ecija" },
+        { name: "Nueva Vizcaya", slug: "nueva-vizcaya" },
+        { name: "Occidental Mindoro", slug: "occidental-mindoro" },
+        { name: "Oriental Mindoro", slug: "oriental-mindoro" },
+        { name: "Palawan", slug: "palawan" },
+        { name: "Pampanga", slug: "pampanga" },
+        { name: "Pangasinan", slug: "pangasinan" },
+        { name: "Quezon", slug: "quezon" },
+        { name: "Quirino", slug: "quirino" },
+        { name: "Rizal", slug: "rizal" },
+        { name: "Romblon", slug: "romblon" },
+        { name: "Samar", slug: "samar" },
+        { name: "Sarangani", slug: "sarangani" },
+        { name: "Siquijor", slug: "siquijor" },
+        { name: "Sorsogon", slug: "sorsogon" },
+        { name: "South Cotabato", slug: "south-cotabato" },
+        { name: "Southern Leyte", slug: "southern-leyte" },
+        { name: "Sultan Kudarat", slug: "sultan-kudarat" },
+        { name: "Sulu", slug: "sulu" },
+        { name: "Surigao del Norte", slug: "surigao-del-norte" },
+        { name: "Surigao del Sur", slug: "surigao-del-sur" },
+        { name: "Tarlac", slug: "tarlac" },
+        { name: "Tawi-Tawi", slug: "tawi-tawi" },
+        { name: "Zambales", slug: "zambales" },
+        { name: "Zamboanga del Norte", slug: "zamboanga-del-norte" },
+        { name: "Zamboanga del Sur", slug: "zamboanga-del-sur" },
+        { name: "Zamboanga Sibugay", slug: "zamboanga-sibugay" },
+      ];
+      const existingSlugs = existingLocs.map((l) => (l.slug ?? "").toLowerCase());
+      const defaultSeedSlugs = new Set(["paris", "london", "tokyo"]);
+      const hasOnlyDefaultSeed =
+        existingSlugs.length > 0 && existingSlugs.every((slug) => defaultSeedSlugs.has(slug));
+
+      // Replace the old demo city names with Philippine cities while preserving IDs.
+      if (hasOnlyDefaultSeed) {
+        await db.update(locations).set({ name: "Manila", slug: "manila" }).where(eq(locations.slug, "paris"));
+        await db.update(locations).set({ name: "Cebu City", slug: "cebu-city" }).where(eq(locations.slug, "london"));
+        await db.update(locations).set({ name: "Davao City", slug: "davao-city" }).where(eq(locations.slug, "tokyo"));
+      }
+
+      const refreshedLocs = await storage.getLocations();
+      for (const location of phLocations) {
+        const exists = refreshedLocs.some((l) => (l.slug ?? "").toLowerCase() === location.slug);
+        if (exists) continue;
+        await db.insert(locations).values(location);
+      }
+
       if (existingLocs.length === 0) {
-        await db.insert(locations).values([
-          { name: "Paris", slug: "paris" },
-          { name: "London", slug: "london" },
-          { name: "Tokyo", slug: "tokyo" },
-        ]);
         await db.insert(attributes).values([
           { name: "Luxury", type: "Travel Style" },
           { name: "Budget", type: "Travel Style" },
