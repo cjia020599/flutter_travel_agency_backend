@@ -787,9 +787,46 @@ app.post('/api/upload/image', requireAuth, upload.fields([{ name: 'image', maxCo
       const user = await storage.getUserById(id);
       if (!user) return res.status(404).json({ message: "Not found" });
 
-      const input = updateProfileSchema.parse(normalizeProfileBody(req.body));
-      if (!rejectEmptyProfileUpdate(input, res)) return;
-      const updated = await storage.updateUser(id, input);
+      const adminUpdateUserSchema = updateProfileSchema.extend({
+        // Backward compatibility for existing frontend payloads.
+        userName: z.string().optional(),
+        role: z.enum(["administrator", "vendor", "customer"]).optional(),
+        roleCode: z.enum(["administrator", "vendor", "customer"]).optional(),
+        roleId: z.number().int().positive().optional(),
+      });
+      const input = adminUpdateUserSchema.parse(normalizeProfileBody(req.body));
+      const normalizedInput: Record<string, unknown> = { ...input };
+      if (
+        typeof normalizedInput.userName === "string" &&
+        normalizedInput.userName.trim() &&
+        normalizedInput.username === undefined
+      ) {
+        normalizedInput.username = normalizedInput.userName.trim();
+      }
+      delete normalizedInput.userName;
+
+      const roleCodeInput = (normalizedInput.roleCode ?? normalizedInput.role) as
+        | "administrator"
+        | "vendor"
+        | "customer"
+        | undefined;
+      if (roleCodeInput) {
+        const role = await storage.getRoleByCode(roleCodeInput);
+        if (!role) return res.status(400).json({ message: "Invalid role" });
+        normalizedInput.roleId = role.id;
+      } else if (normalizedInput.roleId !== undefined) {
+        const roleExists = (await storage.getRoles()).some((r) => r.id === Number(normalizedInput.roleId));
+        if (!roleExists) return res.status(400).json({ message: "Invalid roleId" });
+      }
+
+      delete normalizedInput.role;
+      delete normalizedInput.roleCode;
+
+      if (!rejectEmptyProfileUpdate(normalizedInput, res)) return;
+      const updated = await storage.updateUser(
+        id,
+        normalizedInput as Partial<UpdateProfileInput> & { roleId?: number },
+      );
       return res.json(updated);
     } catch (e) {
       if (e instanceof z.ZodError) {

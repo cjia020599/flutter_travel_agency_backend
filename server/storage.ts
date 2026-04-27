@@ -216,7 +216,10 @@ export const storage = new (class DatabaseStorage {
     return r;
   }
 
-  async updateUser(id: number, updates: Partial<UpdateProfileInput>): Promise<AuthUser> {
+  async updateUser(
+    id: number,
+    updates: Partial<UpdateProfileInput> & { roleId?: number },
+  ): Promise<AuthUser> {
     await db.update(users).set(updates).where(eq(users.id, id));
     return this.getUserById(id) as Promise<AuthUser>;
   }
