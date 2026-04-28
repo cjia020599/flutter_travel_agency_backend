@@ -105,6 +105,13 @@ function normalizeUpdateBody(body: Record<string, unknown>) {
 function normalizeTourBody(body: Record<string, unknown>) {
   const normalized = normalizeUpdateBody(body);
 
+  if (normalized.realTourAddress !== undefined && normalized.realAddress === undefined) {
+    normalized.realAddress = normalized.realTourAddress;
+  }
+  if (normalized.address !== undefined && normalized.realAddress === undefined) {
+    normalized.realAddress = normalized.address;
+  }
+
   if (normalized.fixedDateEnabled !== undefined && normalized.fixedDates === undefined) {
     normalized.fixedDates = normalized.fixedDateEnabled;
   }
@@ -675,6 +682,14 @@ async function resolveLocationIdForUser(user?: { city?: string | null; country?:
   return null;
 }
 
+async function fetchTourAttributeIds(tourId: number): Promise<number[]> {
+  const rows = await db
+    .select({ attributeId: tourAttributes.attributeId })
+    .from(tourAttributes)
+    .where(eq(tourAttributes.tourId, tourId));
+  return rows.map((row) => row.attributeId);
+}
+
 async function ensureAdminSchema() {
   await db.execute(sql`
     CREATE TABLE IF NOT EXISTS categories (
@@ -1031,18 +1046,26 @@ app.post('/api/upload/image', requireAuth, upload.fields([{ name: 'image', maxCo
 
   app.get(api.tours.list.path, async (req, res) => {
     const all = await storage.getTours();
-    res.json(all.filter((t) => !t.deletedAt));
+    const active = all.filter((t) => !t.deletedAt);
+    const withAttributes = await Promise.all(
+      active.map(async (tour) => ({
+        ...tour,
+        attributeIds: await fetchTourAttributeIds(tour.id),
+      }))
+    );
+    res.json(withAttributes);
   });
 
   app.get(api.tours.get.path, async (req, res) => {
     const tour = await storage.getTour(Number(req.params.id));
     if (!tour || tour.deletedAt) return res.status(404).json({ message: "Not found" });
-    res.json(tour);
+    const attributeIds = await fetchTourAttributeIds(tour.id);
+    res.json({ ...tour, attributeIds });
   });
 
   app.post(api.tours.create.path, async (req, res) => {
     try {
-      const input = api.tours.create.input.parse(req.body);
+      const input = api.tours.create.input.parse(normalizeTourBody(req.body));
       const { attributeIds, ...tourData } = input;
       const tour = await storage.createTour({
         ...tourData,
@@ -1052,7 +1075,8 @@ app.post('/api/upload/image', requireAuth, upload.fields([{ name: 'image', maxCo
         const values = attributeIds.map(attrId => ({ tourId: tour.id, attributeId: attrId }));
         await db.insert(tourAttributes).values(values);
       }
-      res.status(201).json(tour);
+      const savedAttributeIds = await fetchTourAttributeIds(tour.id);
+      res.status(201).json({ ...tour, attributeIds: savedAttributeIds });
     } catch (e) {
       if (e instanceof z.ZodError) {
         return res.status(400).json({ message: e.errors[0].message, field: e.errors[0].path.join(".") });
@@ -1089,7 +1113,8 @@ app.post('/api/upload/image', requireAuth, upload.fields([{ name: 'image', maxCo
           await db.insert(tourAttributes).values(values);
         }
       }
-      res.json(tour);
+      const savedAttributeIds = await fetchTourAttributeIds(tour.id);
+      res.json({ ...tour, attributeIds: savedAttributeIds });
     } catch (e) {
       if (e instanceof z.ZodError) {
         return res.status(400).json({ message: e.errors[0].message, field: e.errors[0].path.join(".") });
