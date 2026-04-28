@@ -1,7 +1,7 @@
 import type { Express, Response } from "express";
 import WebSocket from 'ws';
 import jwt from 'jsonwebtoken';
-import { tourAttributes, carAttributes, roles, locations, attributes, attributeTerms, categories, tours, cars, bookings, notifications } from "@shared/schema";
+import { tourAttributes, carAttributes, roles, locations, attributes, attributeTerms, categories, tours, cars, bookings, notifications, chatbotQuestions } from "@shared/schema";
 import type { Rating } from "@shared/schema";
 import { registerSchema, loginSchema, updateProfileSchema, reportFiltersSchema, createNotificationInputSchema, getNotificationsInputSchema, createChatbotQuestionInputSchema, updateChatbotQuestionInputSchema, chatbotAskInputSchema, createRatingInputSchema, updateRatingInputSchema } from "@shared/schema";
 import type { Server } from "http";
@@ -348,6 +348,179 @@ function clampSuggestionCount(count: number): number {
   if (Number.isNaN(count)) return 3;
   return Math.max(1, Math.min(10, count));
 }
+
+const FAQ_STOPWORDS = new Set([
+  "what", "which", "who", "where", "when", "why", "how", "can", "do", "does", "did",
+  "is", "are", "was", "were", "a", "an", "the", "of", "to", "for", "and", "or", "on",
+  "in", "at", "by", "with", "your", "our", "you", "we", "it", "this", "that", "from",
+  "be", "as", "if", "any", "please", "about",
+]);
+
+function buildFaqKeywords(question: string, answer: string): string[] {
+  const tokens = tokenize(`${question} ${answer}`);
+  const filtered = tokens.filter((t) => t.length >= 3 && !FAQ_STOPWORDS.has(t));
+  return Array.from(new Set(filtered)).slice(0, 18);
+}
+
+function buildFaqAliases(question: string): string[] {
+  const aliases = new Set<string>();
+  const trimmed = question.trim();
+  if (!trimmed) return [];
+  aliases.add(trimmed.replace(/\?$/, ""));
+  aliases.add(trimmed.replace(/travelista travel and tours/gi, "travelista"));
+  aliases.add(trimmed.replace(/TRAVELISTA Travel and Tours/g, "Travelista"));
+  return Array.from(aliases)
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0 && s.toLowerCase() !== trimmed.toLowerCase());
+}
+
+function isConfidentFaqMatch(
+  best: { score: number } | undefined,
+  second: { score: number } | undefined,
+  minScore: number
+): boolean {
+  if (!best || best.score < minScore) return false;
+  const gap = best.score - (second?.score ?? 0);
+  return best.score >= 0.72 || gap >= 0.08;
+}
+
+const travelistaFaqSeed: Array<{ question: string; answer: string }> = [
+  {
+    question: "What types of tours does Travelista Travel and Tours offer?",
+    answer:
+      "Travelista Travel and Tours provides a wide range of travel packages including local tours, customized group tours, and special packages for destinations across the Philippines.",
+  },
+  {
+    question: "How can I book a tour with TRAVELISTA Travel and Tours?",
+    answer:
+      "You can book by sending a message on their Facebook page, calling their contact number listed on the page, or visiting their office during business hours.",
+  },
+  {
+    question: "Are the tour packages customizable?",
+    answer:
+      "Yes, TRAVELISTA Travel and Tours allows customization of tours to fit your preferences and travel needs. You can discuss your preferred destinations and activities with their travel consultants.",
+  },
+  {
+    question: "What is the cancellation or refund policy?",
+    answer:
+      "Our cancellation policy depends on the specific tour or package. Please refer to the terms and conditions provided during booking or contact us for more details.",
+  },
+  {
+    question: "Does TRAVELISTA Travel and Tours provide transport and accommodation?",
+    answer:
+      "Yes, many of their packages include transportation and lodging. They also offer assistance in arranging hotel stays and travel logistics to ensure a smooth experience.",
+  },
+  {
+    question: "What are your business hours?",
+    answer: "We are open from 8:00 AM to 6:00 PM daily.",
+  },
+  {
+    question: "Where is your office located?",
+    answer: "Our office is located at 61 D. LACAO ST PUERTO PRINCESA CITY.",
+  },
+  {
+    question: "How can I contact you?",
+    answer:
+      "You can reach us via phone at +12345678901, email at travelista.travelandtours@gmail.com.",
+  },
+  {
+    question: "How do I book a tour or package?",
+    answer: "You can book through our website, by calling us, or by visiting our office.",
+  },
+  {
+    question: "What payment methods do you accept?",
+    answer: "We accept cash, GCASH and online bank transfers.",
+  },
+  {
+    question: "What is your bank?",
+    answer: "Banco De Oro (BDO).",
+  },
+  {
+    question: "What is your bank account details?",
+    answer:
+      "For bank deposit, please remit payment to SWIFT CODE / BIC: TRVLLSTTA, Account Name: TRAVELISTA TRAVEL AND TOURS, Bank Name / Branch: Banco De Oro - Rockwell Center, Makati City, Bank Account No.: 00 40 000 11 888.",
+  },
+  {
+    question: "Is a deposit required to secure my booking?",
+    answer: "Yes, a deposit is required. The amount varies depending on the tour or package.",
+  },
+  {
+    question: "What is included in the tour package?",
+    answer:
+      "Our tour packages typically include transportation, accommodation, meals (as specified), entrance fees, and a tour guide. Please check the specific inclusions for each package.",
+  },
+  {
+    question: "Are flights included in your packages?",
+    answer:
+      "Flights can be included upon request. Please let us know your preferred travel dates and origin so we can provide you with the best options.",
+  },
+  {
+    question: "Can I reschedule my tour?",
+    answer:
+      "Rescheduling is subject to availability and may incur additional charges. Please contact us as soon as possible to discuss your options.",
+  },
+  {
+    question: "What happens if the tour is canceled due to bad weather?",
+    answer: "If a tour is canceled due to bad weather, we will offer a reschedule or a full refund.",
+  },
+  {
+    question: "What should I bring on the tour?",
+    answer:
+      "We recommend bringing comfortable clothing, swimwear, sunscreen, a hat, sunglasses, a reusable water bottle, and a camera.",
+  },
+  {
+    question: "Are meals provided during the tour?",
+    answer: "Some tours include meals. Please check the tour details for specific information.",
+  },
+  {
+    question: "Are your tours child-friendly?",
+    answer:
+      "Yes, many of our tours are suitable for children. Please inquire about age restrictions or recommendations for specific tours.",
+  },
+  {
+    question: "Do you offer private tours?",
+    answer: "Yes, we offer private tours. Please contact us for arrangements and pricing.",
+  },
+  {
+    question: "Do I need travel insurance?",
+    answer: "While not required, we highly recommend purchasing travel insurance for your peace of mind.",
+  },
+  {
+    question: "What health and safety protocols are in place?",
+    answer:
+      "We follow all local health and safety guidelines to ensure a safe and enjoyable experience for our guests. This includes regular sanitization, social distancing, and mask requirements where applicable.",
+  },
+  {
+    question: "Are there any travel restrictions I should be aware of?",
+    answer:
+      "Please check the latest travel advisories and requirements from the local government and your country of origin before traveling.",
+  },
+  {
+    question: "Can you customize a tour package for me?",
+    answer: "Yes, we can customize tour packages to fit your preferences and budget.",
+  },
+  {
+    question: "Do you offer group discounts?",
+    answer: "Yes, we offer discounts for large groups. Please contact us for more information.",
+  },
+  {
+    question: "Can you arrange transportation from the airport?",
+    answer: "Yes, we can arrange airport transfers. Please provide your flight details when booking.",
+  },
+  {
+    question: "Do you offer hotel booking services?",
+    answer: "Yes, we can assist with hotel bookings.",
+  },
+  {
+    question: "Can you help with visa applications?",
+    answer:
+      "We can provide guidance and information on visa requirements, but we do not process visa applications directly.",
+  },
+  {
+    question: "Do you offer car rental services?",
+    answer: "Yes, we can arrange car rentals for your convenience.",
+  },
+];
 
 function priceNumber(value: string | null): number {
   if (!value) return Number.POSITIVE_INFINITY;
@@ -1687,7 +1860,7 @@ app.get('/api/reports/cars', requireAuth, async (req, res) => {
         });
       }
       const items = await storage.getActiveChatbotQuestions();
-      const minScore = input.minScore ?? 0.35;
+      const minScore = input.minScore ?? 0.45;
       const topK = input.topK ?? 3;
 
       const results = items
@@ -1715,9 +1888,10 @@ app.get('/api/reports/cars', requireAuth, async (req, res) => {
         .sort((a, b) => b.score - a.score);
 
       const best = results[0];
-      if (!best || best.score < minScore) {
+      const secondBest = results[1];
+      if (!isConfidentFaqMatch(best, secondBest, minScore)) {
         return res.json({
-          answer: "Sorry, I don't have an answer for that yet.",
+          answer: "I want to make sure I answer correctly. Please rephrase your question with a bit more detail.",
           matched: null,
           top: results.slice(0, topK),
         });
@@ -1879,6 +2053,51 @@ app.get('/api/reports/cars', requireAuth, async (req, res) => {
           { title: "Toyota Corolla", slug: "toyota-corolla", price: "45.00", passenger: 5, gearShift: "Auto", baggage: 2, door: 4, status: "publish" },
           { title: "Mercedes S-Class", slug: "mercedes-s-class", price: "120.00", passenger: 4, gearShift: "Auto", baggage: 3, door: 4, status: "publish", isFeatured: true },
         ]);
+      }
+
+      const existingFaqs = await db
+        .select({
+          id: chatbotQuestions.id,
+          question: chatbotQuestions.question,
+          aliases: chatbotQuestions.aliases,
+          keywords: chatbotQuestions.keywords,
+        })
+        .from(chatbotQuestions);
+      const existingFaqMap = new Map(
+        existingFaqs
+          .map((row) => [String(row.question ?? "").trim().toLowerCase(), row] as const)
+          .filter(([k]) => k.length > 0)
+      );
+      const missingFaqs = travelistaFaqSeed.filter(
+        (item) => !existingFaqMap.has(item.question.trim().toLowerCase())
+      );
+      if (missingFaqs.length > 0) {
+        await db.insert(chatbotQuestions).values(
+          missingFaqs.map((item) => ({
+            question: item.question,
+            answer: item.answer,
+            aliases: buildFaqAliases(item.question),
+            keywords: buildFaqKeywords(item.question, item.answer),
+            active: true,
+          }))
+        );
+      }
+
+      for (const faq of travelistaFaqSeed) {
+        const key = faq.question.trim().toLowerCase();
+        const existing = existingFaqMap.get(key);
+        if (!existing) continue;
+        const existingAliases = Array.isArray(existing.aliases) ? existing.aliases : [];
+        const existingKeywords = Array.isArray(existing.keywords) ? existing.keywords : [];
+        if (existingAliases.length > 0 && existingKeywords.length > 0) continue;
+
+        await db
+          .update(chatbotQuestions)
+          .set({
+            aliases: existingAliases.length > 0 ? existingAliases : buildFaqAliases(faq.question),
+            keywords: existingKeywords.length > 0 ? existingKeywords : buildFaqKeywords(faq.question, faq.answer),
+          })
+          .where(eq(chatbotQuestions.id, existing.id));
       }
     } catch (e) {
       console.log("Seed error:", e);
