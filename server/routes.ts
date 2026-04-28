@@ -529,6 +529,7 @@ async function ensureAdminSchema() {
   await db.execute(sql`ALTER TABLE tours ADD COLUMN IF NOT EXISTS meta_description TEXT;`);
   await db.execute(sql`ALTER TABLE tours ADD COLUMN IF NOT EXISTS service_fee_enabled BOOLEAN DEFAULT FALSE;`);
   await db.execute(sql`ALTER TABLE tours ADD COLUMN IF NOT EXISTS open_hours_enabled BOOLEAN DEFAULT FALSE;`);
+  await db.execute(sql`ALTER TABLE cars ADD COLUMN IF NOT EXISTS gallery JSONB;`);
   await db.execute(sql`ALTER TABLE attributes ADD COLUMN IF NOT EXISTS slug TEXT;`);
   await db.execute(sql`ALTER TABLE attributes ADD COLUMN IF NOT EXISTS position_order INTEGER DEFAULT 0;`);
   await db.execute(sql`ALTER TABLE attributes ADD COLUMN IF NOT EXISTS hide_in_detail BOOLEAN DEFAULT FALSE;`);
@@ -668,68 +669,73 @@ export async function registerRoutes(
 
   // ===================== IMAGE UPLOAD =====================
 
-app.post('/api/upload/image', requireAuth, upload.fields([{ name: 'image', maxCount: 1 }, { name: 'images', maxCount: 1 }]), async (req, res) => {
+app.post('/api/upload/image', requireAuth, upload.fields([{ name: 'image', maxCount: 1 }, { name: 'images', maxCount: 10 }]), async (req, res) => {
     try {
-      console.log('req.files:', req.files);
-      const filesArray = Array.isArray(req.files) ? req.files : [];
-      console.log('filesArray:', filesArray.map((f: any) => ({fieldname: f.fieldname, mimetype: f.mimetype})));
-      
       // Handle multer.fields structure: req.files[fieldname][]
       const files = (req.files ?? {}) as MulterFiles;
-      let file: Express.Multer.File | null = null;
-      if (files.image && Array.isArray(files.image)) {
-        file = files.image[0];
-      } else if (files.images && Array.isArray(files.images)) {
-        file = files.images[0];
-      }
-      
-      if (!file) {
-        console.log('No matching file found. req.files structure:', Object.keys(req.files || {}));
+      const uploadFiles: Express.Multer.File[] = [
+        ...(Array.isArray(files.image) ? files.image : []),
+        ...(Array.isArray(files.images) ? files.images : []),
+      ];
+
+      if (uploadFiles.length === 0) {
         return res.status(400).json({ message: 'No file uploaded - use field "image" or "images"' });
       }
-      console.log('Processing file:', file.fieldname, file.originalname, file.mimetype);
 
       // Validate file type
       const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
-      if (!allowedTypes.includes(file.mimetype)) {
-        fs.unlinkSync(file.path); // Clean up temp file
-        return res.status(400).json({ message: 'Invalid file type. Only JPEG, PNG, WebP, and GIF are allowed.' });
+      for (const file of uploadFiles) {
+        if (!allowedTypes.includes(file.mimetype)) {
+          if (fs.existsSync(file.path)) fs.unlinkSync(file.path);
+          return res.status(400).json({ message: 'Invalid file type. Only JPEG, PNG, WebP, and GIF are allowed.' });
+        }
       }
 
       // Validate file size (5MB max)
-      if (file.size > 5 * 1024 * 1024) {
-        fs.unlinkSync(file.path); // Clean up temp file
-        return res.status(400).json({ message: 'File size must be less than 5MB' });
+      for (const file of uploadFiles) {
+        if (file.size > 5 * 1024 * 1024) {
+          if (fs.existsSync(file.path)) fs.unlinkSync(file.path);
+          return res.status(400).json({ message: 'File size must be less than 5MB' });
+        }
       }
 
-      // Upload to Cloudinary with WebP conversion
-      const result = await cloudinary.uploader.upload(file.path, {
-        folder: 'travel-agency',
-        format: 'webp', // Convert to WebP
-        transformation: [
-          { width: 1200, height: 800, crop: 'limit' }, // Resize if larger
-          { quality: 'auto' }, // Auto quality optimization
-          { fetch_format: 'auto' } // Auto format optimization
-        ]
-      });
+      const uploads: Array<{ url: string; publicId: string }> = [];
+      for (const file of uploadFiles) {
+        const result = await cloudinary.uploader.upload(file.path, {
+          folder: 'travel-agency',
+          format: 'webp', // Convert to WebP
+          transformation: [
+            { width: 1200, height: 800, crop: 'limit' }, // Resize if larger
+            { quality: 'auto' }, // Auto quality optimization
+            { fetch_format: 'auto' } // Auto format optimization
+          ]
+        });
+        uploads.push({
+          url: result.secure_url,
+          publicId: result.public_id,
+        });
+        if (fs.existsSync(file.path)) fs.unlinkSync(file.path);
+      }
 
-      // Clean up temp file
-      fs.unlinkSync(file.path);
+      const firstUpload = uploads[0];
 
-      res.json({ 
-        url: result.secure_url,
-        publicId: result.public_id 
+      res.json({
+        url: firstUpload?.url,
+        publicId: firstUpload?.publicId,
+        images: uploads,
       });
     } catch (error) {
       console.error('Upload error:', error);
       // Clean up temp files if they exist
-      const files = req.files as any[];
-      if (Array.isArray(files)) {
-        files.forEach(f => {
-          if (f && f.path && fs.existsSync(f.path)) {
-            fs.unlinkSync(f.path);
-          }
-        });
+      const files = (req.files ?? {}) as MulterFiles;
+      const cleanupFiles = [
+        ...(Array.isArray(files.image) ? files.image : []),
+        ...(Array.isArray(files.images) ? files.images : []),
+      ];
+      for (const file of cleanupFiles) {
+        if (file?.path && fs.existsSync(file.path)) {
+          fs.unlinkSync(file.path);
+        }
       }
       res.status(500).json({ message: 'Upload failed' });
     }

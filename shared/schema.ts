@@ -141,6 +141,7 @@ export const cars = pgTable("cars", {
   content: text("content"),
   videoUrl: text("video_url"),
   imageUrl: text("image_url"),
+  gallery: jsonb("gallery"),
   status: text("status").notNull().default("draft"),
   isFeatured: boolean("is_featured").default(false),
   authorId: integer("author_id"),
