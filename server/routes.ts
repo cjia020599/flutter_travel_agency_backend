@@ -1428,6 +1428,71 @@ app.get('/api/reports/cars', requireAuth, async (req, res) => {
     }
   });
 
+  app.get('/api/reports/dashboard', requireAuth, async (req, res) => {
+    try {
+      const user = (req as any).user;
+      const parsedFilters = reportFiltersSchema.parse(req.query);
+      const filters = parsedFilters;
+      if (user.roleCode === 'vendor') {
+        filters.vendorId = user.id;
+      }
+      const [tourSummary, carSummary, bookingStats, bookingItems] = await Promise.all([
+        storage.getTourSummary(filters),
+        storage.getCarSummary(filters),
+        storage.getBookingStats(filters),
+        storage.getBookingSalesLines(filters),
+      ]);
+
+      const servicesCount = tourSummary.reduce((sum, row) => sum + row.count, 0) +
+        carSummary.reduce((sum, row) => sum + row.count, 0);
+      const totalAmount = bookingItems.reduce((sum, row) => sum + row.amount, 0);
+      const totalTax = bookingItems.reduce((sum, row) => sum + row.tax, 0);
+      const totalRevenue = bookingItems.reduce((sum, row) => sum + row.total, 0);
+
+      const chartByDay = new Map<string, { date: string; revenue: number; earning: number }>();
+      for (const item of bookingItems) {
+        const date = new Date(item.bookingDate).toISOString().split('T')[0];
+        const current = chartByDay.get(date) ?? { date, revenue: 0, earning: 0 };
+        current.revenue += item.total;
+        current.earning += item.amount;
+        chartByDay.set(date, current);
+      }
+      const chart = Array.from(chartByDay.values())
+        .sort((a, b) => a.date.localeCompare(b.date))
+        .slice(-7);
+
+      const recentBookings = [...bookingItems]
+        .sort((a, b) => b.bookingId - a.bookingId)
+        .slice(0, 10)
+        .map((item) => ({
+          id: item.bookingId,
+          item: item.serviceName,
+          total: item.total,
+          paid: item.amount,
+          status: item.status,
+          createdAt: item.bookingDate,
+        }));
+
+      res.json({
+        metrics: {
+          revenue: totalRevenue,
+          earning: totalAmount,
+          bookings: bookingStats.totalBookings,
+          services: servicesCount,
+          tax: totalTax,
+        },
+        chart,
+        recentBookings,
+      });
+    } catch (e) {
+      if (e instanceof z.ZodError) {
+        return res.status(400).json({ message: e.errors[0].message });
+      }
+      console.error("Dashboard report error:", e);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
 
   app.get('/api/reports/locations', requireAuth, async (req, res) => {
     try {

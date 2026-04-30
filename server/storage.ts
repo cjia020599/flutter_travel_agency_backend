@@ -487,6 +487,8 @@ export const storage = new (class DatabaseStorage {
     bookingId: number;
     serviceName: string;
     moduleType: "tour" | "car";
+    status: string;
+    bookingDate: Date;
     pax: number;
     price: number;
     salePrice: number;
@@ -500,6 +502,8 @@ export const storage = new (class DatabaseStorage {
       .select({
         bookingId: bookings.id,
         moduleType: bookings.moduleType,
+        status: bookings.status,
+        bookingDate: bookings.startDate,
         tourTitle: tours.title,
         carTitle: cars.title,
         tourAuthorId: tours.authorId,
@@ -543,6 +547,8 @@ export const storage = new (class DatabaseStorage {
             ? (row.tourTitle ?? `Tour #${row.bookingId}`)
             : (row.carTitle ?? `Car #${row.bookingId}`),
         moduleType: normalizedType,
+        status: row.status ?? "confirmed",
+        bookingDate: row.bookingDate,
         pax,
         price: basePrice,
         salePrice,
