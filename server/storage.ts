@@ -259,6 +259,9 @@ export const storage = new (class DatabaseStorage {
         startDate: bookings.startDate,
         endDate: bookings.endDate,
         status: bookings.status,
+        buyerName: bookings.buyerName,
+        buyerEmail: bookings.buyerEmail,
+        buyerPhone: bookings.buyerPhone,
         car: cars.id,
         carTitle: cars.title,
         carPrice: cars.price,
@@ -268,6 +271,17 @@ export const storage = new (class DatabaseStorage {
         userFirstName: users.firstName,
         userLastName: users.lastName,
         userEmail: users.email,
+        creatorName: sql<string>`(
+          select coalesce(
+            nullif(trim(concat(u.first_name, ' ', u.last_name)), ''),
+            nullif(trim(u.username), ''),
+            nullif(trim(u.email), ''),
+            'Unknown'
+          )
+          from users u
+          where u.id = ${cars.authorId}
+          limit 1
+        )`,
       })
       .from(bookings)
       .leftJoin(cars, eq(bookings.moduleId, cars.id))
@@ -282,6 +296,13 @@ export const storage = new (class DatabaseStorage {
 
     const results = await query;
     return results.map((r) => ({
+      bookedBy:
+        (r.buyerName ?? "").trim() ||
+        (`${r.userFirstName ?? ""} ${r.userLastName ?? ""}`.trim()) ||
+        ((r.buyerEmail ?? "").trim()) ||
+        ((r.userEmail ?? "").trim()) ||
+        "Unknown",
+      creator: (r.creatorName ?? "").trim() || "Unknown",
       id: r.id,
       userId: r.userId,
       moduleType: r.moduleType,
@@ -289,9 +310,9 @@ export const storage = new (class DatabaseStorage {
       startDate: r.startDate,
       endDate: r.endDate,
       status: r.status,
-      buyerName: null,
-      buyerEmail: null,
-      buyerPhone: null,
+      buyerName: r.buyerName,
+      buyerEmail: r.buyerEmail,
+      buyerPhone: r.buyerPhone,
       car: {
         id: r.car!,
         title: r.carTitle!,
@@ -340,6 +361,17 @@ export const storage = new (class DatabaseStorage {
         userFirstName: users.firstName,
         userLastName: users.lastName,
         userEmail: users.email,
+        creatorName: sql<string>`(
+          select coalesce(
+            nullif(trim(concat(u.first_name, ' ', u.last_name)), ''),
+            nullif(trim(u.username), ''),
+            nullif(trim(u.email), ''),
+            'Unknown'
+          )
+          from users u
+          where u.id = ${tours.authorId}
+          limit 1
+        )`,
       })
       .from(bookings)
       .leftJoin(tours, eq(bookings.moduleId, tours.id))
@@ -354,6 +386,13 @@ export const storage = new (class DatabaseStorage {
 
     const results = await query;
     return results.map(r => ({
+      bookedBy:
+        (r.buyerName ?? "").trim() ||
+        (`${r.userFirstName ?? ""} ${r.userLastName ?? ""}`.trim()) ||
+        ((r.buyerEmail ?? "").trim()) ||
+        ((r.userEmail ?? "").trim()) ||
+        "Unknown",
+      creator: (r.creatorName ?? "").trim() || "Unknown",
       ...r,
       tour: {
         id: r.tour!,
@@ -509,6 +548,8 @@ export const storage = new (class DatabaseStorage {
     moduleType: "tour" | "car";
     status: string;
     bookingDate: Date;
+    bookedBy: string;
+    creator: string;
     pax: number;
     price: number;
     salePrice: number;
@@ -532,10 +573,25 @@ export const storage = new (class DatabaseStorage {
         carPrice: cars.price,
         tourSalePrice: tours.salePrice,
         carSalePrice: cars.salePrice,
+        bookerFirstName: users.firstName,
+        bookerLastName: users.lastName,
+        bookerEmail: users.email,
+        creatorName: sql<string>`(
+          select coalesce(
+            nullif(trim(concat(u.first_name, ' ', u.last_name)), ''),
+            nullif(trim(u.username), ''),
+            nullif(trim(u.email), ''),
+            'Unknown'
+          )
+          from users u
+          where u.id = coalesce(${tours.authorId}, ${cars.authorId})
+          limit 1
+        )`,
       })
       .from(bookings)
       .leftJoin(tours, and(eq(bookings.moduleType, "tour"), eq(bookings.moduleId, tours.id)))
       .leftJoin(cars, and(eq(bookings.moduleType, "car"), eq(bookings.moduleId, cars.id)))
+      .leftJoin(users, eq(bookings.userId, users.id))
       .where(
         and(
           filters?.vendorId
@@ -560,6 +616,7 @@ export const storage = new (class DatabaseStorage {
       const pax = 1;
       const amount = salePrice * pax;
       const tax = amount * defaultTaxRate;
+      const bookerName = `${row.bookerFirstName ?? ''} ${row.bookerLastName ?? ''}`.trim();
       return {
         bookingId: row.bookingId,
         serviceName:
@@ -569,6 +626,10 @@ export const storage = new (class DatabaseStorage {
         moduleType: normalizedType,
         status: row.status ?? "confirmed",
         bookingDate: row.bookingDate,
+        bookedBy: bookerName.isNotEmpty
+          ? bookerName
+          : ((row.bookerEmail ?? "").trim() || "Unknown"),
+        creator: (row.creatorName ?? "").trim() || "Unknown",
         pax,
         price: basePrice,
         salePrice,
