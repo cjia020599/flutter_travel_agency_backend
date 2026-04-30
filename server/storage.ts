@@ -1,5 +1,5 @@
 import { drizzle } from "drizzle-orm/node-postgres";
-import { eq, and, isNull, count, sum, avg, sql, desc } from "drizzle-orm";
+import { eq, and, isNull, count, sum, avg, sql, desc, or } from "drizzle-orm";
 import * as schema from "@shared/schema";
 import { roles, users, vendorProfiles, tours, cars, locations, attributes, attributeTerms, categories, bookings, ratings, notifications } from "@shared/schema";
 import pg from "pg";
@@ -481,6 +481,77 @@ export const storage = new (class DatabaseStorage {
         byModuleType: [],
       };
     }
+  }
+
+  async getBookingSalesLines(filters?: ReportFilters): Promise<Array<{
+    bookingId: number;
+    serviceName: string;
+    moduleType: "tour" | "car";
+    pax: number;
+    price: number;
+    salePrice: number;
+    amount: number;
+    taxRate: number;
+    tax: number;
+    total: number;
+  }>> {
+    const defaultTaxRate = 0.12;
+    const query = db
+      .select({
+        bookingId: bookings.id,
+        moduleType: bookings.moduleType,
+        tourTitle: tours.title,
+        carTitle: cars.title,
+        tourAuthorId: tours.authorId,
+        carAuthorId: cars.authorId,
+        tourPrice: tours.price,
+        carPrice: cars.price,
+        tourSalePrice: tours.salePrice,
+        carSalePrice: cars.salePrice,
+      })
+      .from(bookings)
+      .leftJoin(tours, and(eq(bookings.moduleType, "tour"), eq(bookings.moduleId, tours.id)))
+      .leftJoin(cars, and(eq(bookings.moduleType, "car"), eq(bookings.moduleId, cars.id)))
+      .where(
+        and(
+          filters?.vendorId
+              ? or(eq(tours.authorId, filters.vendorId), eq(cars.authorId, filters.vendorId))
+              : sql`true`,
+          filters?.fromDate ? sql`${bookings.startDate} >= ${new Date(filters.fromDate)}` : sql`true`,
+          filters?.toDate ? sql`${bookings.endDate} <= ${new Date(filters.toDate)}` : sql`true`,
+        )
+      );
+
+    const rows = await query;
+    return rows.map((row) => {
+      const normalizedType = row.moduleType === "car" ? "car" : "tour";
+      const basePrice = Number(
+        normalizedType === "tour" ? (row.tourPrice ?? 0) : (row.carPrice ?? 0),
+      );
+      const salePrice = Number(
+        normalizedType === "tour"
+            ? (row.tourSalePrice ?? row.tourPrice ?? 0)
+            : (row.carSalePrice ?? row.carPrice ?? 0),
+      );
+      const pax = 1;
+      const amount = salePrice * pax;
+      const tax = amount * defaultTaxRate;
+      return {
+        bookingId: row.bookingId,
+        serviceName:
+          normalizedType === "tour"
+            ? (row.tourTitle ?? `Tour #${row.bookingId}`)
+            : (row.carTitle ?? `Car #${row.bookingId}`),
+        moduleType: normalizedType,
+        pax,
+        price: basePrice,
+        salePrice,
+        amount,
+        taxRate: defaultTaxRate,
+        tax,
+        total: amount + tax,
+      };
+    });
   }
 
   async getLocationStats(filters?: ReportFilters): Promise<LocationStats[]> {

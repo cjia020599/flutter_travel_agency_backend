@@ -1401,8 +1401,25 @@ app.get('/api/reports/cars', requireAuth, async (req, res) => {
       if (user.roleCode === 'vendor') {
         filters.vendorId = user.id;
       }
-      const stats = await storage.getBookingStats(filters);
-      res.json(stats);
+      const [summary, items] = await Promise.all([
+        storage.getBookingStats(filters),
+        storage.getBookingSalesLines(filters),
+      ]);
+      const totals = items.reduce(
+        (acc, item) => {
+          acc.amount += item.amount;
+          acc.tax += item.tax;
+          acc.total += item.total;
+          return acc;
+        },
+        { amount: 0, tax: 0, total: 0 },
+      );
+      res.json({
+        summary,
+        items,
+        taxRate: items[0]?.taxRate ?? 0.12,
+        totals,
+      });
     } catch (e) {
       if (e instanceof z.ZodError) {
         return res.status(400).json({ message: e.errors[0].message });

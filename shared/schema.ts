@@ -324,6 +324,19 @@ export interface BookingStats {
   dateRange?: { from: string; to: string };
 }
 
+export interface BookingSalesLine {
+  bookingId: number;
+  serviceName: string;
+  moduleType: 'tour' | 'car';
+  pax: number;
+  price: number;
+  salePrice: number;
+  amount: number;
+  taxRate: number;
+  tax: number;
+  total: number;
+}
+
 export interface LocationStats {
   id: number;
   name: string;
