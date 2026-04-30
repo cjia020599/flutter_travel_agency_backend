@@ -1493,6 +1493,88 @@ app.get('/api/reports/cars', requireAuth, async (req, res) => {
     }
   });
 
+  app.get('/api/reports/revenues', requireAuth, async (req, res) => {
+    try {
+      const user = (req as any).user;
+      const parsedFilters = reportFiltersSchema.parse(req.query);
+      const filters = parsedFilters;
+      if (user.roleCode === 'vendor') {
+        filters.vendorId = user.id;
+      }
+
+      const now = new Date();
+      const fallbackEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+      const fallbackStart = new Date(fallbackEnd);
+      fallbackStart.setDate(fallbackStart.getDate() - 6);
+      fallbackStart.setHours(0, 0, 0, 0);
+
+      const startDate = filters.fromDate
+        ? new Date(filters.fromDate)
+        : fallbackStart;
+      const endDate = filters.toDate
+        ? new Date(filters.toDate)
+        : fallbackEnd;
+      startDate.setHours(0, 0, 0, 0);
+      endDate.setHours(23, 59, 59, 999);
+
+      const scopedFilters = {
+        ...filters,
+        fromDate: startDate.toISOString(),
+        toDate: endDate.toISOString(),
+      };
+
+      const [tourSummary, carSummary, bookingStats, bookingItems] = await Promise.all([
+        storage.getTourSummary(scopedFilters),
+        storage.getCarSummary(scopedFilters),
+        storage.getBookingStats(scopedFilters),
+        storage.getBookingSalesLines(scopedFilters),
+      ]);
+
+      const earnings = bookingItems.reduce((sum, row) => sum + row.amount, 0);
+      const totalRevenue = bookingItems.reduce((sum, row) => sum + row.total, 0);
+      const totalTax = bookingItems.reduce((sum, row) => sum + row.tax, 0);
+      const pendingBookings = bookingItems.filter(
+        (item) => (item.status ?? '').toLowerCase() === 'pending',
+      ).length;
+      const services =
+        tourSummary.reduce((sum, row) => sum + row.count, 0) +
+        carSummary.reduce((sum, row) => sum + row.count, 0);
+
+      const chartByDay = new Map<string, { date: string; revenue: number; earning: number }>();
+      for (const item of bookingItems) {
+        const date = new Date(item.bookingDate).toISOString().split('T')[0];
+        const current = chartByDay.get(date) ?? { date, revenue: 0, earning: 0 };
+        current.revenue += item.total;
+        current.earning += item.amount;
+        chartByDay.set(date, current);
+      }
+
+      const chart = Array.from(chartByDay.values()).sort((a, b) =>
+        a.date.localeCompare(b.date),
+      );
+
+      res.json({
+        metrics: {
+          pending: pendingBookings,
+          earnings,
+          bookings: bookingStats.totalBookings ?? bookingItems.length,
+          services,
+          revenue: totalRevenue,
+          tax: totalTax,
+        },
+        chart,
+        fromDate: startDate.toISOString(),
+        toDate: endDate.toISOString(),
+      });
+    } catch (e) {
+      if (e instanceof z.ZodError) {
+        return res.status(400).json({ message: e.errors[0].message });
+      }
+      console.error("Revenue report error:", e);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
 
   app.get('/api/reports/locations', requireAuth, async (req, res) => {
     try {
