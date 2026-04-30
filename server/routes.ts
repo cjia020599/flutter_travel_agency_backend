@@ -1063,7 +1063,7 @@ app.post('/api/upload/image', requireAuth, upload.fields([{ name: 'image', maxCo
     res.json({ ...tour, attributeIds });
   });
 
-  app.post(api.tours.create.path, async (req, res) => {
+  app.post(api.tours.create.path, requireAuth, async (req, res) => {
     try {
       const input = api.tours.create.input.parse(normalizeTourBody(req.body));
       const { attributeIds, ...tourData } = input;
@@ -1161,7 +1161,7 @@ app.post('/api/upload/image', requireAuth, upload.fields([{ name: 'image', maxCo
     res.json(car);
   });
 
-  app.post(api.cars.create.path, async (req, res) => {
+  app.post(api.cars.create.path, requireAuth, async (req, res) => {
     try {
       const input = api.cars.create.input.parse(req.body);
       console.log("Creating car with input:", input);
