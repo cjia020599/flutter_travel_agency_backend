@@ -1498,9 +1498,7 @@ app.get('/api/reports/cars', requireAuth, async (req, res) => {
       const user = (req as any).user;
       const parsedFilters = reportFiltersSchema.parse(req.query);
       const filters = parsedFilters;
-      if (user.roleCode === 'vendor') {
-        filters.vendorId = user.id;
-      }
+      const isAdmin = user.roleCode === 'administrator';
 
       const now = new Date();
       const fallbackEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
@@ -1523,25 +1521,29 @@ app.get('/api/reports/cars', requireAuth, async (req, res) => {
         toDate: endDate.toISOString(),
       };
 
-      const [tourSummary, carSummary, bookingStats, bookingItems] = await Promise.all([
-        storage.getTourSummary(scopedFilters),
-        storage.getCarSummary(scopedFilters),
-        storage.getBookingStats(scopedFilters),
-        storage.getBookingSalesLines(scopedFilters),
-      ]);
+      const bookingItems = await storage.getBookingSalesLines(scopedFilters);
+      const visibleItems = isAdmin
+        ? bookingItems
+        : bookingItems.filter((item) => item.bookingUserId === user.id);
 
-      const earnings = bookingItems.reduce((sum, row) => sum + row.amount, 0);
-      const totalRevenue = bookingItems.reduce((sum, row) => sum + row.total, 0);
-      const totalTax = bookingItems.reduce((sum, row) => sum + row.tax, 0);
-      const pendingBookings = bookingItems.filter(
-        (item) => (item.status ?? '').toLowerCase() === 'pending',
+      const normalizeStatus = (status: string | null | undefined) =>
+        (status ?? '').toString().trim().toLowerCase();
+      const billableStatuses = new Set(['confirmed', 'completed']);
+      const billableItems = visibleItems.filter((item) =>
+        billableStatuses.has(normalizeStatus(item.status)),
+      );
+      const earnings = billableItems.reduce((sum, row) => sum + row.amount, 0);
+      const totalRevenue = billableItems.reduce((sum, row) => sum + row.total, 0);
+      const totalTax = billableItems.reduce((sum, row) => sum + row.tax, 0);
+      const pendingBookings = visibleItems.filter(
+        (item) => normalizeStatus(item.status) === 'pending',
       ).length;
-      const services =
-        tourSummary.reduce((sum, row) => sum + row.count, 0) +
-        carSummary.reduce((sum, row) => sum + row.count, 0);
+      const services = new Set(
+        billableItems.map((item) => `${item.moduleType}:${item.serviceName}`),
+      ).size;
 
       const chartByDay = new Map<string, { date: string; revenue: number; earning: number }>();
-      for (const item of bookingItems) {
+      for (const item of billableItems) {
         const date = new Date(item.bookingDate).toISOString().split('T')[0];
         const current = chartByDay.get(date) ?? { date, revenue: 0, earning: 0 };
         current.revenue += item.total;
@@ -1557,7 +1559,7 @@ app.get('/api/reports/cars', requireAuth, async (req, res) => {
         metrics: {
           pending: pendingBookings,
           earnings,
-          bookings: bookingStats.totalBookings ?? bookingItems.length,
+          bookings: billableItems.length,
           services,
           revenue: totalRevenue,
           tax: totalTax,

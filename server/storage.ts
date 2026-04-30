@@ -544,6 +544,7 @@ export const storage = new (class DatabaseStorage {
 
   async getBookingSalesLines(filters?: ReportFilters): Promise<Array<{
     bookingId: number;
+    bookingUserId: number | null;
     serviceName: string;
     moduleType: "tour" | "car";
     status: string;
@@ -562,6 +563,7 @@ export const storage = new (class DatabaseStorage {
     const query = db
       .select({
         bookingId: bookings.id,
+        bookingUserId: bookings.userId,
         moduleType: bookings.moduleType,
         status: bookings.status,
         bookingDate: bookings.startDate,
@@ -619,6 +621,7 @@ export const storage = new (class DatabaseStorage {
       const bookerName = `${row.bookerFirstName ?? ''} ${row.bookerLastName ?? ''}`.trim();
       return {
         bookingId: row.bookingId,
+        bookingUserId: row.bookingUserId ?? null,
         serviceName:
           normalizedType === "tour"
             ? (row.tourTitle ?? `Tour #${row.bookingId}`)
