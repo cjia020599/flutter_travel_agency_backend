@@ -548,7 +548,7 @@ function formatSuggestionList(suggestions: SuggestionItem[]): string {
   if (suggestions.length === 0) return "";
   const lines = suggestions.map((item, index) => {
     const priceValue = item.salePrice ?? item.price;
-    const priceLabel = priceValue ? ` - $${priceValue}` : "";
+    const priceLabel = priceValue ? ` - ₱${priceValue}` : "";
     return `${index + 1}. ${item.title} (${item.kind})${priceLabel}`;
   });
   return lines.join("\n");
