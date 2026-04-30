@@ -207,6 +207,269 @@ type BuiltinChatbotMatch = {
   moduleType: "car" | "tour" | null;
 };
 
+type AnalyticsIntentKey =
+  | "sales_overview"
+  | "most_booked"
+  | "top_revenue_service"
+  | "booking_volume"
+  | "revenue_trend"
+  | "cancellation_health"
+  | "confirmation_health"
+  | "module_mix"
+  | "average_ticket";
+
+type AnalyticsIntentMatch = {
+  key: AnalyticsIntentKey;
+  label: string;
+};
+
+const analyticsIntentPatterns: Array<{
+  key: AnalyticsIntentKey;
+  label: string;
+  patterns: RegExp[];
+}> = [
+  { key: "most_booked", label: "Most booked service", patterns: [/\bmost booked\b/, /\btop booked\b/, /\bbest seller\b/, /\bhighest booking\b/] },
+  { key: "top_revenue_service", label: "Top revenue service", patterns: [/\btop revenue\b/, /\bhighest revenue\b/, /\bbiggest revenue\b/, /\bmost revenue\b/] },
+  { key: "revenue_trend", label: "Revenue trend", patterns: [/\brevenue trend\b/, /\bsales trend\b/, /\btrend\b/, /\bgrowth\b/, /\bdecline\b/] },
+  { key: "cancellation_health", label: "Cancellation health", patterns: [/\bcancel rate\b/, /\bcancellation\b/, /\bcancelled\b/, /\bcanceled\b/] },
+  { key: "confirmation_health", label: "Confirmation health", patterns: [/\bconfirmation rate\b/, /\bconfirmed rate\b/, /\bconfirm rate\b/] },
+  { key: "module_mix", label: "Tour vs car mix", patterns: [/\btour vs car\b/, /\bmodule mix\b/, /\bproduct mix\b/, /\bservice mix\b/] },
+  { key: "average_ticket", label: "Average order value", patterns: [/\baverage ticket\b/, /\baverage order\b/, /\baov\b/, /\bavg booking value\b/] },
+  { key: "booking_volume", label: "Booking volume", patterns: [/\bbooking volume\b/, /\bbooking count\b/, /\bhow many bookings\b/, /\btotal bookings\b/] },
+  { key: "sales_overview", label: "Sales overview", patterns: [/\bdata analysis\b/, /\banalysis\b/, /\bsales analysis\b/, /\bbusiness analysis\b/, /\bperformance\b/, /\boverview\b/] },
+];
+
+function detectAnalyticsIntent(question: string): AnalyticsIntentMatch | null {
+  const q = normalizeText(question);
+  if (!q) return null;
+  const isAnalyticsLike =
+    q.includes("analysis") ||
+    q.includes("analytics") ||
+    q.includes("sales") ||
+    q.includes("revenue") ||
+    q.includes("booked") ||
+    q.includes("booking") ||
+    q.includes("trend") ||
+    q.includes("performance") ||
+    q.includes("business");
+  if (!isAnalyticsLike) return null;
+
+  for (const item of analyticsIntentPatterns) {
+    if (item.patterns.some((p) => p.test(q))) {
+      return { key: item.key, label: item.label };
+    }
+  }
+  return { key: "sales_overview", label: "Sales overview" };
+}
+
+function percentage(num: number, den: number): number {
+  if (!den) return 0;
+  return (num / den) * 100;
+}
+
+function classifyLevel(value: number, low: number, high: number): "low" | "normal" | "high" {
+  if (value <= low) return "low";
+  if (value >= high) return "high";
+  return "normal";
+}
+
+function formatTrend(deltaPct: number): string {
+  if (!Number.isFinite(deltaPct)) return "stable";
+  if (deltaPct > 3) return `up ${deltaPct.toFixed(1)}%`;
+  if (deltaPct < -3) return `down ${Math.abs(deltaPct).toFixed(1)}%`;
+  return "almost flat";
+}
+
+function buildImprovementActions(input: {
+  cancelRate: number;
+  confirmRate: number;
+  pendingBookings: number;
+  totalBookings: number;
+  moduleCounter: { tour: number; car: number };
+  trendText: string;
+  mostBookedService?: string;
+  topRevenueService?: string;
+}): string[] {
+  const actions: string[] = [];
+
+  if (input.cancelRate >= 20) {
+    actions.push("High cancellation risk: tighten booking confirmations, require clearer payment/terms, and send reminder messages 24 hours before schedule.");
+  } else if (input.cancelRate >= 8) {
+    actions.push("Moderate cancellations: review top cancelled services and fix the main pain points (timing, pricing, or service expectations).");
+  } else {
+    actions.push("Cancellation is healthy: keep current process and track weekly to prevent sudden spikes.");
+  }
+
+  if (input.confirmRate < 40) {
+    actions.push("Low confirmation rate: simplify checkout, reduce form fields, and add fast follow-up for pending inquiries.");
+  } else if (input.confirmRate < 75) {
+    actions.push("Confirmation is average: test better offer messaging, urgency cues, and faster response times.");
+  } else {
+    actions.push("Strong confirmation: scale winning campaigns and replicate for lower-performing services.");
+  }
+
+  if (input.pendingBookings > Math.max(3, Math.floor(input.totalBookings * 0.2))) {
+    actions.push("Pending bookings are high: assign a response SLA and automate follow-up within 15-30 minutes.");
+  }
+
+  if (input.trendText.includes("down")) {
+    actions.push("Revenue trend is down: launch short-term promos for top-demand services and reactivate past customers.");
+  } else if (input.trendText.includes("up")) {
+    actions.push("Revenue trend is up: protect momentum by increasing capacity on best-selling services.");
+  } else {
+    actions.push("Revenue is stable: run A/B pricing or bundled offers to unlock incremental growth.");
+  }
+
+  const totalModule = input.moduleCounter.tour + input.moduleCounter.car;
+  if (totalModule > 0) {
+    const tourShare = (input.moduleCounter.tour / totalModule) * 100;
+    const carShare = (input.moduleCounter.car / totalModule) * 100;
+    if (tourShare > 70) {
+      actions.push("Demand is tour-heavy: improve car rental bundles to diversify revenue and reduce concentration risk.");
+    } else if (carShare > 70) {
+      actions.push("Demand is car-heavy: add tour cross-sells to increase attachment rate.");
+    } else {
+      actions.push("Balanced product mix: optimize cross-sell journeys to raise average ticket.");
+    }
+  }
+
+  if (input.mostBookedService && input.topRevenueService && input.mostBookedService !== input.topRevenueService) {
+    actions.push(`"${input.mostBookedService}" drives demand while "${input.topRevenueService}" drives revenue; use upsell paths from demand to higher-value services.`);
+  }
+
+  return actions.slice(0, 7);
+}
+
+async function buildAnalyticsAnswer(
+  question: string,
+  analyticsIntent: AnalyticsIntentMatch,
+  user?: { id?: number; roleCode?: string | null }
+): Promise<string> {
+  const filters: { vendorId?: number } = {};
+  if (user?.roleCode === "vendor" && typeof user.id === "number") {
+    filters.vendorId = user.id;
+  }
+
+  const items = await storage.getBookingSalesLines(filters);
+  if (items.length === 0) {
+    return "I checked your database but there are no booking sales records yet, so I cannot compute analysis right now.";
+  }
+
+  const billableStatuses = new Set(["confirmed", "completed"]);
+  const normalizedStatus = (value: string | null | undefined) =>
+    (value ?? "").toString().trim().toLowerCase();
+  const billable = items.filter((row) => billableStatuses.has(normalizedStatus(row.status)));
+  const totalBookings = items.length;
+  const billableBookings = billable.length;
+  const cancelledBookings = items.filter((row) => normalizedStatus(row.status) === "cancelled").length;
+  const pendingBookings = items.filter((row) => normalizedStatus(row.status) === "pending").length;
+  const totalRevenue = billable.reduce((sum, row) => sum + row.total, 0);
+  const averageTicket = billableBookings > 0 ? totalRevenue / billableBookings : 0;
+  const cancelRate = percentage(cancelledBookings, totalBookings);
+  const confirmRate = percentage(billableBookings, totalBookings);
+
+  const bookingByService = new Map<string, number>();
+  const revenueByService = new Map<string, number>();
+  const moduleCounter = { tour: 0, car: 0 };
+  for (const row of items) {
+    const service = row.serviceName;
+    bookingByService.set(service, (bookingByService.get(service) ?? 0) + 1);
+    if (billableStatuses.has(normalizedStatus(row.status))) {
+      revenueByService.set(service, (revenueByService.get(service) ?? 0) + row.total);
+    }
+    if (row.moduleType === "tour") moduleCounter.tour += 1;
+    if (row.moduleType === "car") moduleCounter.car += 1;
+  }
+
+  const mostBooked = [...bookingByService.entries()].sort((a, b) => b[1] - a[1])[0];
+  const topRevenueService = [...revenueByService.entries()].sort((a, b) => b[1] - a[1])[0];
+
+  const now = new Date();
+  const currentStart = new Date(now);
+  currentStart.setDate(currentStart.getDate() - 29);
+  currentStart.setHours(0, 0, 0, 0);
+
+  const previousStart = new Date(currentStart);
+  previousStart.setDate(previousStart.getDate() - 30);
+  const previousEnd = new Date(currentStart);
+  previousEnd.setMilliseconds(previousEnd.getMilliseconds() - 1);
+
+  const inRange = (d: Date, from: Date, to: Date) => d >= from && d <= to;
+  const currentRevenue = billable
+    .filter((row) => inRange(new Date(row.bookingDate), currentStart, now))
+    .reduce((sum, row) => sum + row.total, 0);
+  const previousRevenue = billable
+    .filter((row) => inRange(new Date(row.bookingDate), previousStart, previousEnd))
+    .reduce((sum, row) => sum + row.total, 0);
+  const revenueDeltaPct = previousRevenue > 0 ? ((currentRevenue - previousRevenue) / previousRevenue) * 100 : 0;
+
+  const cancelLevel = classifyLevel(cancelRate, 8, 20);
+  const confirmLevel = classifyLevel(confirmRate, 40, 75);
+  const trendText = formatTrend(revenueDeltaPct);
+  const improvementActions = buildImprovementActions({
+    cancelRate,
+    confirmRate,
+    pendingBookings,
+    totalBookings,
+    moduleCounter,
+    trendText,
+    mostBookedService: mostBooked?.[0],
+    topRevenueService: topRevenueService?.[0],
+  });
+  const actionListText = improvementActions.map((a, i) => `${i + 1}. ${a}`).join("\n");
+
+  if (analyticsIntent.key === "most_booked") {
+    return mostBooked
+      ? `Most booked service is "${mostBooked[0]}" with ${mostBooked[1]} bookings. Current cancellation rate is ${cancelRate.toFixed(1)}% (${cancelLevel}), so demand is ${cancelLevel === "high" ? "strong but needs cancellation control" : "healthy"}.\n\nHow to improve further:\n${actionListText}`
+      : "I checked your database but there is no identifiable most-booked service yet.";
+  }
+
+  if (analyticsIntent.key === "top_revenue_service") {
+    return topRevenueService
+      ? `Top revenue service is "${topRevenueService[0]}" with about ₱${topRevenueService[1].toFixed(2)} in billable revenue. Overall average ticket is ₱${averageTicket.toFixed(2)} across ${billableBookings} billable bookings.\n\nHow to improve further:\n${actionListText}`
+      : "I checked your database but there is no billable revenue yet.";
+  }
+
+  if (analyticsIntent.key === "booking_volume") {
+    return `Total bookings: ${totalBookings}. Billable: ${billableBookings}. Pending: ${pendingBookings}. Cancelled: ${cancelledBookings}. Confirmation health is ${confirmLevel} at ${confirmRate.toFixed(1)}%.\n\nHow to improve further:\n${actionListText}`;
+  }
+
+  if (analyticsIntent.key === "revenue_trend") {
+    return `Revenue trend (latest 30 days): ₱${currentRevenue.toFixed(2)}, compared with previous 30 days: ₱${previousRevenue.toFixed(2)} (${trendText}). This indicates ${trendText.includes("up") ? "growth momentum" : trendText.includes("down") ? "a slowdown that needs action" : "a stable period"}.\n\nHow to improve further:\n${actionListText}`;
+  }
+
+  if (analyticsIntent.key === "cancellation_health") {
+    return `Cancellation rate is ${cancelRate.toFixed(1)}% (${cancelledBookings}/${totalBookings}), which is ${cancelLevel}. ${cancelLevel === "high" ? "You should review service quality, scheduling, and payment friction." : "Current cancellation level is manageable."}\n\nHow to improve further:\n${actionListText}`;
+  }
+
+  if (analyticsIntent.key === "confirmation_health") {
+    return `Confirmation rate is ${confirmRate.toFixed(1)}% (${billableBookings}/${totalBookings}), which is ${confirmLevel}. ${confirmLevel === "low" ? "Improving follow-up and checkout flow should help." : "This is a good conversion signal."}\n\nHow to improve further:\n${actionListText}`;
+  }
+
+  if (analyticsIntent.key === "module_mix") {
+    const total = moduleCounter.tour + moduleCounter.car;
+    const tourShare = percentage(moduleCounter.tour, total);
+    const carShare = percentage(moduleCounter.car, total);
+    return `Booking mix is Tours ${moduleCounter.tour} (${tourShare.toFixed(1)}%) and Cars ${moduleCounter.car} (${carShare.toFixed(1)}%). This shows where demand currently concentrates in your database.\n\nHow to improve further:\n${actionListText}`;
+  }
+
+  if (analyticsIntent.key === "average_ticket") {
+    return `Average ticket value is ₱${averageTicket.toFixed(2)} based on ${billableBookings} billable bookings, with total billable revenue of ₱${totalRevenue.toFixed(2)}.\n\nHow to improve further:\n${actionListText}`;
+  }
+
+  return [
+    `Sales overview from your database:`,
+    `- Total bookings: ${totalBookings} (billable ${billableBookings}, pending ${pendingBookings}, cancelled ${cancelledBookings})`,
+    `- Billable revenue: ₱${totalRevenue.toFixed(2)} | Avg ticket: ₱${averageTicket.toFixed(2)}`,
+    `- Confirmation rate: ${confirmRate.toFixed(1)}% (${confirmLevel}) | Cancellation rate: ${cancelRate.toFixed(1)}% (${cancelLevel})`,
+    `- Revenue trend (last 30 days vs previous): ${trendText}`,
+    mostBooked ? `- Most booked: ${mostBooked[0]} (${mostBooked[1]} bookings)` : "- Most booked: N/A",
+    "",
+    "How to improve further:",
+    ...improvementActions.map((a, i) => `${i + 1}. ${a}`),
+  ].join("\n");
+}
+
 function detectBuiltinChatbotResponse(question: string): BuiltinChatbotMatch | null {
   const q = normalizeText(question);
   if (!q) return null;
@@ -1939,10 +2202,22 @@ app.get('/api/reports/cars', requireAuth, async (req, res) => {
   app.post(api.chatbot.ask.path, async (req, res) => {
     try {
       const input = chatbotAskInputSchema.parse(req.body);
+      const analyticsIntent = detectAnalyticsIntent(input.question);
+      const user = (req as any).user as
+        | { id?: number; roleCode?: string | null; city?: string | null; country?: string | null }
+        | undefined;
+      if (analyticsIntent) {
+        const answer = await buildAnalyticsAnswer(input.question, analyticsIntent, user);
+        return res.json({
+          answer,
+          matched: { intent: "data_analysis", analysisIntent: analyticsIntent.key },
+          suggestions: [],
+          top: [],
+        });
+      }
       const builtin = detectBuiltinChatbotResponse(input.question);
       const intentFromInput = input.intent;
       const moduleTypeFromInput = input.moduleType ?? null;
-      const user = (req as any).user as { city?: string | null; country?: string | null } | undefined;
       const excludeItems: SuggestionItem[] = (input.exclude ?? []).map((item) => ({
         id: item.id,
         title: "",
