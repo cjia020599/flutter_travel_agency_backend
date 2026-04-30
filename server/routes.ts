@@ -1477,7 +1477,7 @@ app.get('/api/reports/cars', requireAuth, async (req, res) => {
         metrics: {
           revenue: totalRevenue,
           earning: totalAmount,
-          bookings: bookingStats.totalBookings,
+          bookings: bookingItems.length,
           services: servicesCount,
           tax: totalTax,
         },

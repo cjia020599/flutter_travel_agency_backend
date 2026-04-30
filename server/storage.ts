@@ -437,29 +437,49 @@ export const storage = new (class DatabaseStorage {
 
   async getBookingStats(filters?: ReportFilters): Promise<BookingStats> {
     try {
-      const totalQuery = await db.select({ count: count() }).from(bookings);
-      const confirmedQuery = await db.select({ count: count() }).from(bookings).where(eq(bookings.status, 'confirmed'));
-      const cancelledQuery = await db.select({ count: count() }).from(bookings).where(eq(bookings.status, 'cancelled'));
-      
-      // Tour stats
-      const tourStats = await db
-        .select({ 
-          count: count(), 
-          revenue: sum(sql`t."price"::numeric` as any)
-        })
+      const vendorFilter =
+        filters?.vendorId
+          ? or(eq(tours.authorId, filters.vendorId), eq(cars.authorId, filters.vendorId))
+          : sql`true`;
+      const dateFilters = and(
+        filters?.fromDate ? sql`${bookings.startDate} >= ${new Date(filters.fromDate)}` : sql`true`,
+        filters?.toDate ? sql`${bookings.endDate} <= ${new Date(filters.toDate)}` : sql`true`,
+      );
+
+      const totalQuery = await db
+        .select({ count: count() })
         .from(bookings)
-        .leftJoin(tours, eq(bookings.moduleId, tours.id))
-        .where(eq(bookings.moduleType, 'tour'));
-      
-      // Car stats
-      const carStats = await db
-        .select({ 
-          count: count(), 
-          revenue: sum(sql`c."price"::numeric` as any)
-        })
+        .leftJoin(tours, and(eq(bookings.moduleType, 'tour'), eq(bookings.moduleId, tours.id)))
+        .leftJoin(cars, and(eq(bookings.moduleType, 'car'), eq(bookings.moduleId, cars.id)))
+        .where(and(vendorFilter, dateFilters));
+
+      const confirmedQuery = await db
+        .select({ count: count() })
         .from(bookings)
-        .leftJoin(cars, eq(bookings.moduleId, cars.id))
-        .where(eq(bookings.moduleType, 'car'));
+        .leftJoin(tours, and(eq(bookings.moduleType, 'tour'), eq(bookings.moduleId, tours.id)))
+        .leftJoin(cars, and(eq(bookings.moduleType, 'car'), eq(bookings.moduleId, cars.id)))
+        .where(and(eq(bookings.status, 'confirmed'), vendorFilter, dateFilters));
+
+      const cancelledQuery = await db
+        .select({ count: count() })
+        .from(bookings)
+        .leftJoin(tours, and(eq(bookings.moduleType, 'tour'), eq(bookings.moduleId, tours.id)))
+        .leftJoin(cars, and(eq(bookings.moduleType, 'car'), eq(bookings.moduleId, cars.id)))
+        .where(and(eq(bookings.status, 'cancelled'), vendorFilter, dateFilters));
+
+      const tourCountQuery = await db
+        .select({ count: count() })
+        .from(bookings)
+        .leftJoin(tours, and(eq(bookings.moduleType, 'tour'), eq(bookings.moduleId, tours.id)))
+        .leftJoin(cars, and(eq(bookings.moduleType, 'car'), eq(bookings.moduleId, cars.id)))
+        .where(and(eq(bookings.moduleType, 'tour'), vendorFilter, dateFilters));
+
+      const carCountQuery = await db
+        .select({ count: count() })
+        .from(bookings)
+        .leftJoin(tours, and(eq(bookings.moduleType, 'tour'), eq(bookings.moduleId, tours.id)))
+        .leftJoin(cars, and(eq(bookings.moduleType, 'car'), eq(bookings.moduleId, cars.id)))
+        .where(and(eq(bookings.moduleType, 'car'), vendorFilter, dateFilters));
 
       return {
         totalBookings: Number(totalQuery[0]?.count || 0),
@@ -467,8 +487,8 @@ export const storage = new (class DatabaseStorage {
         confirmed: Number(confirmedQuery[0]?.count || 0),
         cancelled: Number(cancelledQuery[0]?.count || 0),
         byModuleType: [
-          { type: 'tour' as const, count: Number(tourStats[0]?.count || 0), revenue: 0 },
-          { type: 'car' as const, count: Number(carStats[0]?.count || 0), revenue: 0 },
+          { type: 'tour' as const, count: Number(tourCountQuery[0]?.count || 0), revenue: 0 },
+          { type: 'car' as const, count: Number(carCountQuery[0]?.count || 0), revenue: 0 },
         ],
       };
     } catch (error) {
