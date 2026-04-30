@@ -1524,7 +1524,10 @@ app.get('/api/reports/cars', requireAuth, async (req, res) => {
       const bookingItems = await storage.getBookingSalesLines(scopedFilters);
       const visibleItems = isAdmin
         ? bookingItems
-        : bookingItems.filter((item) => item.bookingUserId === user.id);
+        : bookingItems.filter(
+            (item) =>
+              item.serviceOwnerId === user.id || item.bookingUserId === user.id,
+          );
 
       const normalizeStatus = (status: string | null | undefined) =>
         (status ?? '').toString().trim().toLowerCase();

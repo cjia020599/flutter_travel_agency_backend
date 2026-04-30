@@ -545,6 +545,7 @@ export const storage = new (class DatabaseStorage {
   async getBookingSalesLines(filters?: ReportFilters): Promise<Array<{
     bookingId: number;
     bookingUserId: number | null;
+    serviceOwnerId: number | null;
     serviceName: string;
     moduleType: "tour" | "car";
     status: string;
@@ -622,6 +623,10 @@ export const storage = new (class DatabaseStorage {
       return {
         bookingId: row.bookingId,
         bookingUserId: row.bookingUserId ?? null,
+        serviceOwnerId:
+          normalizedType === "tour"
+            ? (row.tourAuthorId ?? null)
+            : (row.carAuthorId ?? null),
         serviceName:
           normalizedType === "tour"
             ? (row.tourTitle ?? `Tour #${row.bookingId}`)
